@@ -18,13 +18,15 @@ public class ConfigManager {
 
     private final BlockRegen plugin;
     private FileConfiguration config;
-    private final int LATEST_CONFIG_VERSION = 6;
+    private final int LATEST_CONFIG_VERSION = 9;
 
     public String prefix;
     public String reloadMessage;
     public String noPermissionMessage;
     public String inventoryFullMessage;
     public String wrongToolMessage;
+    public String blockBeingMinedMessage;
+    public String touchLimitReachedMessage;
     public String regenCountdownMessage;
     public String wandReceiveMessage;
     public String pos1Message;
@@ -61,6 +63,15 @@ public class ConfigManager {
     public boolean particlesOnRegen;
     public String defaultBreakParticle;
     public String defaultRegenParticle;
+    public long miningHoldMineTimeoutMs;
+    public long miningReleaseGraceMs;
+    public long miningResumeTimeoutMs;
+    public int miningDefaultTouchLimit;
+    public boolean breakDurationHologramEnabled;
+    public String breakDurationHologramText;
+    public double breakDurationHologramOffsetX;
+    public double breakDurationHologramOffsetY;
+    public double breakDurationHologramOffsetZ;
 
     public ConfigManager(BlockRegen plugin) {
         this.plugin = plugin;
@@ -106,6 +117,8 @@ public class ConfigManager {
         this.noPermissionMessage = this.prefix + getColoredString("messages.no-permission");
         this.inventoryFullMessage = this.prefix + getColoredString("messages.inventory-full");
         this.wrongToolMessage = this.prefix + getColoredString("messages.wrong-tool");
+        this.blockBeingMinedMessage = this.prefix + getColoredString("messages.block-being-mined");
+        this.touchLimitReachedMessage = this.prefix + getColoredString("messages.touch-limit-reached");
         this.regenCountdownMessage = getColoredString("messages.regen-countdown");
         this.wandReceiveMessage = this.prefix + getColoredString("messages.wand-receive");
         this.pos1Message = getColoredString("messages.pos1-set");
@@ -137,6 +150,10 @@ public class ConfigManager {
         this.sendRegenCountdown = this.config.getBoolean("options.send-regen-countdown", true);
         this.checkForUpdates = this.config.getBoolean("options.check-for-updates", true);
         this.preventMiningWhenFull = this.config.getBoolean("options.prevent-mining-when-full", true);
+        this.miningHoldMineTimeoutMs = this.config.getLong("options.mining.hold-timeout-ms", 1800L);
+        this.miningReleaseGraceMs = this.config.getLong("options.mining.release-grace-ms", 2000L);
+        this.miningResumeTimeoutMs = this.config.getLong("options.mining.resume-timeout-ms", 3000L);
+        this.miningDefaultTouchLimit = this.config.getInt("options.mining.default-touch-limit", 2);
         this.worldGuardEnabled = this.config.getBoolean("worldguard.enabled", false);
         this.worldGuardDisableOtherBreak = this.config.getBoolean("worldguard.disable-other-break", false);
         this.worldGuardBreakRegenInDenyRegions = this.config.getBoolean("worldguard.break-regen-in-deny-regions", false);
@@ -149,6 +166,11 @@ public class ConfigManager {
         this.particlesOnRegen = this.config.getBoolean("particles.on-regen", true);
         this.defaultBreakParticle = this.config.getString("particles.default-break-particle", "CRIT:10:0.5");
         this.defaultRegenParticle = this.config.getString("particles.default-regen-particle", "VILLAGER_HAPPY:10:0.5");
+        this.breakDurationHologramEnabled = this.config.getBoolean("break-duration-hologram.enabled", true);
+        this.breakDurationHologramText = this.config.getString("break-duration-hologram.text", "&f%time%");
+        this.breakDurationHologramOffsetX = this.config.getDouble("break-duration-hologram.offset.x", 0.5);
+        this.breakDurationHologramOffsetY = this.config.getDouble("break-duration-hologram.offset.y", 1.3);
+        this.breakDurationHologramOffsetZ = this.config.getDouble("break-duration-hologram.offset.z", 0.5);
 
         // Muat pemetaan profil multiplier dunia
         this.worldMultiplierProfiles = new HashMap<>();

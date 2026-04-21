@@ -7,7 +7,7 @@
 # ================================================================================= #
 
 # Current version of the configuration file. Do not change this value.
-config-version: 6
+config-version: 9
 
 
 
@@ -52,7 +52,7 @@ worlds:
   # A list of worlds where block regeneration is enabled.
   # This list is ignored if 'enable-all-worlds' is set to 'true'.
   enabled-worlds:
-    - "world_mining"
+    - "void"
     - "world_prison"
 
   # (NEW SECTION)
@@ -77,23 +77,52 @@ options:
   # If true, players will be prevented from breaking regen blocks if their inventory is full.
   prevent-mining-when-full: true
 
+  # Custom break-duration mining controls.
+  mining:
+    # Maximum delay between clicks before mining is cancelled (anti-hold mine), in milliseconds.
+    hold-timeout-ms: 1800
+    # Grace period when player briefly releases crosshair from the block, in milliseconds.
+    release-grace-ms: 3000
+    # How long paused progress can be resumed by any player, in milliseconds.
+    resume-timeout-ms: 3000
+    # Base number of different blocks a player can touch in the resume window.
+    default-touch-limit: 2
+
+
+# ================================================================================= #
+#                          Break Duration Hologram Settings                         #
+# ================================================================================= #
+break-duration-hologram:
+  # Show a floating hologram while mining blocks using break-duration.
+  enabled: true
+
+  # If FancyHolograms is installed, BlockRegen will still work; this setting controls
+  # the in-world hologram display used by the break-duration mechanic.
+  text: '&f%time%'
+
+  # Offset from block location.
+  offset:
+    x: 0.5
+    y: 1.3
+    z: 0.5
+
 
 # ================================================================================= #
 #                             WorldGuard Integration                                #
 # ================================================================================= #
 worldguard:
   # Enable WorldGuard integration. If true, the plugin will check WorldGuard regions.
-  enabled: false
+  enabled: true
 
   # If true, and WorldGuard is enabled, only blocks defined in blocks.yml can be broken
   # within WorldGuard regions where the 'block-break' flag is set to ALLOW.
   # All other blocks (like regular dirt, stone, etc.) will be unbreakable in such regions.
-  disable-other-break: true
+  disable-other-break: false
 
   # If true, players will be able to break blocks from blocks.yml even in WorldGuard
   # regions where the 'block-break' flag is set to DENY.
   # This allows you to protect a region completely but still allow farming/mining of regen blocks.
-  break-regen-in-deny-regions: false
+  break-regen-in-deny-regions: true
 
 # ================================================================================= #
 #                               MMOCore Integration                                 #
@@ -138,58 +167,69 @@ particles:
 # All plugin messages are configurable and support color codes using the '&' symbol.
 messages:
   # The prefix that appears before most plugin messages.
-  prefix: "&6[&eBlockRegen&6] &r"
+  prefix: "<b><gradient:#41B7FF:#41D5FF>SkyForge</gradient></b> &7» &r"
 
   # Message sent when the configuration is successfully reloaded.
-  reload: "&6Configuration has been successfully reloaded."
+  reload: "&6Konfigurasi berhasil dimuat ulang."
 
   # Message sent to a player who lacks the required permission.
-  no-permission: "&cYou do not have permission to execute this command."
+  no-permission: "&cKamu tidak memiliki izin untuk menjalankan perintah ini."
 
   # Message sent when a player's inventory is full and they try to break a block.
-  inventory-full: "&cYour inventory is full! You cannot break this block."
+  inventory-full: "&cInventorimu penuh! Kamu tidak bisa menambang block ini."
 
   # Message sent when a player tries to break a regen block with the wrong tool.
-  wrong-tool: "&cYou need a more suitable tool to break this block."
+  wrong-tool: "&cKamu harus memerlukan %tool%."
+
+  # Message sent when the block is already being mined by someone else.
+  block-being-mined: "&cBlock ini sedang dimining orang lain."
+
+  # Message sent when player touched too many different blocks in resume window.
+  touch-limit-reached: "&cBatas sentuhan block kamu sudah penuh."
 
   # The message displayed on the action bar while a block is on cooldown.
   # Placeholders: %time% - The remaining time in seconds.
-  regen-countdown: "&6Block will regenerate in &e%time%s&6."
+  regen-countdown: "&6Block akan kembali dalam &e%time%&6."
 
   # Message sent to the player when they receive the wand.
-  wand-receive: "&6You have received the &eRegion Selection Wand&6."
+  wand-receive: "&6Kamu menerima &eRegion Selection Wand&6."
 
   # Message sent when position 1 is set.
   # Placeholders: %location%
-  pos1-set: "&6Position 1 set to &e%location%&6."
+  pos1-set: "&6Posisi 1 diatur ke &e%location%&6."
 
   # Message sent when position 2 is set.
   # Placeholders: %location%
-  pos2-set: "&6Position 2 set to &e%location%&6."
+  pos2-set: "&6Posisi 2 diatur ke &e%location%&6."
 
   # Message sent when a region is successfully saved.
   # Placeholders: %region%
-  region-saved: "&6Region '&e%region%&6' has been successfully saved."
+  region-saved: "&6Region '&e%region%&6' berhasil disimpan."
 
   # Sent to admins when they break a regen block outside of a defined region.
-  not-in-region: "&cThis block will not regenerate because it is not inside a defined region."
+  not-in-region: "&cBlock ini tidak akan regenerasi karena tidak berada dalam region yang terdaftar."
 
   # Message sent when a region is successfully removed.
-  region-removed: "&6Region '&e%region%&6' has been successfully removed."
+  region-removed: "&6Region '&e%region%&6' berhasil dihapus."
 
   # Message sent when a specified region is not found.
-  region-not-found: "&cRegion '&e%region%&c' not found."
+  region-not-found: "&cRegion '&e%region%&c' tidak ditemukan."
 
   # Message sent when a new update is available.
   # Placeholders: %latest_version%, %current_version%, %download_link%
-  update-notify: "&6A new version is available: &e%latest_version% &6(Current: &e%current_version%&6). Download it from: &e%download_link%"
+  update-notify: "&6Versi baru tersedia: &e%latest_version% &6(Saat ini: &e%current_version%&6). Unduh di: &e%download_link%"
 
   # Help command messages
   help-header: "&6&m-----------------------------------------------------"
   help-title: "&6&lBlockRegen &7- &fCommands"
   help-footer: "&6&m-----------------------------------------------------"
   help-commands:
-    - "&6/blockregen reload &7- Reloads the plugin configuration."
-    - "&6/blockregen wand &7- Gives you the region selection wand."
-    - "&6/blockregen save <name> &7- Saves the currently selected region."
-    - "&6/blockregen remove <name> &7- Removes a saved region."
+    - "&6/blockregen reload &7- Memuat ulang konfigurasi plugin."
+    - "&6/blockregen wand &7- Memberikan wand pemilih region."
+    - "&6/blockregen save <nama> &7- Menyimpan region yang sedang dipilih."
+    - "&6/blockregen remove <nama> &7- Menghapus region tersimpan."
+    - "&6/regen block set <region> <id_block> &7- Menambahkan titik random ore ke region."
+    - "&6/regen block remove <region> <id_block> &7- Menghapus titik random ore dari region."
+    - "&6/regen block refresh [region|all] &7- Refresh random ore langsung saat itu juga."
+    - "&6/regen block spawn <region> <id_block> <jumlah> &7- Spawn paksa block random di region."
+    - "&6/regen block debug <region> &7- Lihat point yang kepilih di cycle random terakhir."

@@ -3,11 +3,12 @@
 # ---------------------------------------------------------------------------------------------------- #
 # This file defines custom block regeneration behaviors, including drops, sounds, particles,           #
 # tool requirements, and commands. Each top-level key represents a block identifier (e.g., STONE,     #
-# itemsadder:custom_ore, mmoitems:TOOL:PICKAXE).                                                       #
+# itemsadder:custom_ore, mmoitems:TOOL:PICKAXE, nexo:nexo_ore).                                       #
 #                                                                                                      #
 # IMPORTANT: Ensure that the block identifiers match the exact namespaced IDs for custom blocks        #
-# (e.g., from ItemsAdder) or the Material enum names for vanilla blocks. For MMOItems, use the         #
-# 'mmoitems:TYPE:ID' format.                                                                           #
+# (e.g., from ItemsAdder, Nexo) or the Material enum names for vanilla blocks. For MMOItems, use the  #
+# 'mmoitems:TYPE:ID' format. For Nexo, use the 'nexo:id' format.                                       #
+# Optional per-block region restriction: use `regions:` list (example at section #13).                 #
 # ---------------------------------------------------------------------------------------------------- #
 
 
@@ -114,6 +115,8 @@ DIAMOND_ORE:
   mmocore-exp:
     mining: 15 # Gives 15 EXP to the MMOCore 'mining' profession
     # Name and lore are optional for MMOItems.
+  auraskills-xp:
+    mining: 15 # Gives 15 AuraSkills XP to the mining skill
 
 
 
@@ -276,3 +279,79 @@ QUARTZ_ORE:
       amount: '1-3'
       material: 'noblemetals:palladium_ingot' # This is the ItemsAdder custom drop
       # Name and lore are optional for ItemsAdder items, as they are defined in ItemsAdder itself.
+
+'nexo:agate_ore':
+  replaced-block: STONE
+  regen-delay: 30
+  break-duration: 20.0
+  regions:
+    - map1wd
+  tools-required:
+    - mmoitems:PICKAXE:CRACKED_PICKAXE
+    - mmoitems:PICKAXE:RUSTED_PICKAXE
+    - mmoitems:PICKAXE:MOSSBOUND_PICKAXE
+    - mmoitems:PICKAXE:RUIN_PICKAXE
+    - mmoitems:PICKAXE:ANCIENT_ROOT_PICKAXE
+  drops:
+    auto-inventory: false
+    natural-drop: false
+  regen-blocks:
+    'nexo:agate_ore':
+      chance: 90.0
+    'nexo:agate_deepslate':
+      chance: 10.0
+    'nexo:agate_raw_block':
+      chance: 1.0
+  commands:
+    - '[CONSOLE] agateore %player%'
+
+'nexo:agate_deepslate':
+  replaced-block: STONE
+  regen-delay: 40
+  break-duration: 50.0
+  regions:
+    - map1wd
+  tools-required:
+    - mmoitems:PICKAXE:CRACKED_PICKAXE
+    - mmoitems:PICKAXE:RUSTED_PICKAXE
+    - mmoitems:PICKAXE:MOSSBOUND_PICKAXE
+    - mmoitems:PICKAXE:RUIN_PICKAXE
+    - mmoitems:PICKAXE:ANCIENT_ROOT_PICKAXE
+  drops:
+    auto-inventory: false
+    natural-drop: false
+  regen-blocks:
+    'nexo:agate_ore':
+      chance: 50.0
+    'nexo:agate_deepslate':
+      chance: 40.0
+    'nexo:agate_raw_block':
+      chance: 10.0
+  commands:
+    - '[CONSOLE] agatedeepslate %player%'
+
+'nexo:agate_raw_block':
+  replaced-block: STONE
+  regen-delay: 60
+  break-duration: 60.0
+  regions:
+    - map1wd
+  tools-required:
+    - mmoitems:PICKAXE:CRACKED_PICKAXE
+    - mmoitems:PICKAXE:RUSTED_PICKAXE
+    - mmoitems:PICKAXE:MOSSBOUND_PICKAXE
+    - mmoitems:PICKAXE:RUIN_PICKAXE
+    - mmoitems:PICKAXE:ANCIENT_ROOT_PICKAXE
+  drops:
+    auto-inventory: false
+    natural-drop: false
+  regen-blocks:
+    'nexo:agate_ore':
+      chance: 30.0
+    'nexo:agate_deepslate':
+      chance: 50.0
+    'nexo:agate_raw_block':
+      chance: 20.0
+  commands:
+    - '[CONSOLE] agaterawblock %player%'
+

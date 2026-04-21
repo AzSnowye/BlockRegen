@@ -5,6 +5,9 @@ import me.allync.blockregen.command.BlockRegenCommand;
 import me.allync.blockregen.command.RegenMultiplierCommand;
 import me.allync.blockregen.listener.*;
 import me.allync.blockregen.manager.*;
+import me.allync.blockregen.task.RandomOreSpawnTask;
+import me.allync.blockregen.util.BreakDurationHologramUtil;
+import me.allync.blockregen.util.ItemUtil;
 // Hapus import MiningMonitorTask
 // import me.allync.blockregen.task.MiningMonitorTask;
 import me.allync.blockregen.util.UpdateChecker;
@@ -30,6 +33,9 @@ public final class BlockRegen extends JavaPlugin {
     private PlayerManager playerManager;
     private MultiplierManager multiplierManager;
     private MiningManager miningManager;
+    private RandomOreManager randomOreManager;
+    private RandomOreSpawnTask randomOreSpawnTask;
+    private BlockMiningListener blockMiningListener;
     // Hapus field MiningMonitorTask
     // private MiningMonitorTask miningMonitor;
 
@@ -38,8 +44,11 @@ public final class BlockRegen extends JavaPlugin {
 
     public static boolean mmoItemsEnabled;
     public static boolean itemsAdderEnabled;
+    public static boolean nexoEnabled;
     public static boolean harvestFlowEnabled;
     public static boolean mmocoreEnabled;
+    public static boolean auraSkillsEnabled;
+    public static boolean fancyHologramsEnabled;
     public static boolean coinsEngineEnabled;
 
     private final Set<UUID> debuggingPlayers = new HashSet<>();
@@ -56,6 +65,13 @@ public final class BlockRegen extends JavaPlugin {
         if (itemsAdderEnabled) {
             getLogger().info("ItemsAdder found, integration enabled.");
         }
+        nexoEnabled = getServer().getPluginManager().isPluginEnabled("Nexo");
+        if (nexoEnabled) {
+            getLogger().info("Nexo found, integration enabled.");
+            ItemUtil.setNexoEnabled(true);
+        } else {
+            ItemUtil.setNexoEnabled(false);
+        }
         harvestFlowEnabled = getServer().getPluginManager().isPluginEnabled("HarvestFlow");
         if (harvestFlowEnabled) {
             getLogger().info("HarvestFlow found, compatibility mode enabled.");
@@ -63,6 +79,14 @@ public final class BlockRegen extends JavaPlugin {
         mmocoreEnabled = getServer().getPluginManager().isPluginEnabled("MMOCore");
         if (mmocoreEnabled) {
             getLogger().info("MMOCore found, integration enabled.");
+        }
+        auraSkillsEnabled = getServer().getPluginManager().isPluginEnabled("AuraSkills");
+        if (auraSkillsEnabled) {
+            getLogger().info("AuraSkills found, integration enabled.");
+        }
+        fancyHologramsEnabled = getServer().getPluginManager().isPluginEnabled("FancyHolograms");
+        if (fancyHologramsEnabled) {
+            getLogger().info("FancyHolograms found, break-duration hologram integration enabled.");
         }
 
         configManager = new ConfigManager(this);
@@ -83,11 +107,13 @@ public final class BlockRegen extends JavaPlugin {
         regionManager = new RegionManager(this);
         playerManager = new PlayerManager(this);
         miningManager = new MiningManager(this); // Inisialisasi MiningManager
+        randomOreManager = new RandomOreManager(this);
         // Hapus inisialisasi MiningMonitorTask
         // miningMonitor = new MiningMonitorTask(this);
 
         blockManager.loadBlocks();
         regionManager.loadRegions();
+        randomOreManager.load();
 
         if (configManager.worldGuardEnabled) {
             Plugin plugin = getServer().getPluginManager().getPlugin("WorldGuard");
@@ -108,20 +134,36 @@ public final class BlockRegen extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new WandListener(this, regionManager), this);
         getServer().getPluginManager().registerEvents(new PlayerConnectionListener(this), this);
         getServer().getPluginManager().registerEvents(new GUIListener(this), this);
-        getServer().getPluginManager().registerEvents(new BlockMiningListener(this), this); // Daftarkan listener baru
+        blockMiningListener = new BlockMiningListener(this);
+        getServer().getPluginManager().registerEvents(blockMiningListener, this); // Daftarkan listener baru
+        if (nexoEnabled) {
+            getServer().getPluginManager().registerEvents(new NexoLoadListener(this), this);
+        }
 
         // Hapus task monitor
         // miningMonitor.runTaskTimer(this, 0L, 5L);
 
         // Mendaftarkan Command
-        getCommand("blockregen").setExecutor(new BlockRegenCommand(this));
+        BlockRegenCommand blockRegenCommand = new BlockRegenCommand(this);
+        getCommand("blockregen").setExecutor(blockRegenCommand);
+        getCommand("blockregen").setTabCompleter(blockRegenCommand);
         getCommand("regenmultiplier").setExecutor(new RegenMultiplierCommand(this));
+
+        startRandomOreTask();
 
         getLogger().info("BlockRegen has been enabled successfully!");
     }
 
     @Override
     public void onDisable() {
+        if (randomOreSpawnTask != null) {
+            randomOreSpawnTask.cancel();
+            randomOreSpawnTask = null;
+        }
+        if (blockMiningListener != null) {
+            blockMiningListener.shutdown();
+        }
+        BreakDurationHologramUtil.removeAll();
         if (regenManager != null) {
             regenManager.handleShutdown();
         }
@@ -135,11 +177,16 @@ public final class BlockRegen extends JavaPlugin {
         multiplierManager.load();
         blockManager.loadBlocks();
         regionManager.loadRegions();
+        randomOreManager.load();
+        startRandomOreTask();
 
-        // Saat reload, kita harus membatalkan semua task menambang yang ada
-        // Ini bisa ditambahkan nanti jika diperlukan, tapi PlayerQuitEvent
-        // seharusnya sudah menangani pemain yang logout
-        // Untuk sekarang, kita biarkan
+        nexoEnabled = getServer().getPluginManager().isPluginEnabled("Nexo");
+        if (nexoEnabled) {
+            getLogger().info("Nexo found, integration enabled.");
+            ItemUtil.setNexoEnabled(true);
+        } else {
+            ItemUtil.setNexoEnabled(false);
+        }
 
         harvestFlowEnabled = getServer().getPluginManager().isPluginEnabled("HarvestFlow");
         if (harvestFlowEnabled) {
@@ -148,6 +195,14 @@ public final class BlockRegen extends JavaPlugin {
         mmocoreEnabled = getServer().getPluginManager().isPluginEnabled("MMOCore");
         if (mmocoreEnabled) {
             getLogger().info("MMOCore found, integration enabled.");
+        }
+        auraSkillsEnabled = getServer().getPluginManager().isPluginEnabled("AuraSkills");
+        if (auraSkillsEnabled) {
+            getLogger().info("AuraSkills found, integration enabled.");
+        }
+        fancyHologramsEnabled = getServer().getPluginManager().isPluginEnabled("FancyHolograms");
+        if (fancyHologramsEnabled) {
+            getLogger().info("FancyHolograms found, break-duration hologram integration enabled.");
         }
         if (configManager.worldGuardEnabled) {
             Plugin plugin = getServer().getPluginManager().getPlugin("WorldGuard");
@@ -186,6 +241,20 @@ public final class BlockRegen extends JavaPlugin {
         }
     }
 
+    private void startRandomOreTask() {
+        if (randomOreSpawnTask != null) {
+            randomOreSpawnTask.cancel();
+            randomOreSpawnTask = null;
+        }
+
+        if (!randomOreManager.isEnabled()) {
+            return;
+        }
+
+        randomOreSpawnTask = new RandomOreSpawnTask(this);
+        randomOreSpawnTask.runTaskTimer(this, 20L, Math.max(20L, randomOreManager.getIntervalTicks()));
+    }
+
 
     public boolean isPlayerDebugging(Player player) {
         return debuggingPlayers.contains(player.getUniqueId());
@@ -221,6 +290,7 @@ public final class BlockRegen extends JavaPlugin {
     public PlayerManager getPlayerManager() { return playerManager; }
     public MultiplierManager getMultiplierManager() { return multiplierManager; }
     public MiningManager getMiningManager() { return miningManager; }
+    public RandomOreManager getRandomOreManager() { return randomOreManager; }
     // Hapus getter MiningMonitorTask
     // public MiningMonitorTask getMiningMonitor() { return miningMonitor; }
     public WorldGuardPlugin getWorldGuardPlugin() { return worldGuardPlugin; }

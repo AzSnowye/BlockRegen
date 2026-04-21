@@ -23,6 +23,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.Set;
 import java.util.logging.Logger;
 
 public class BlockBreakListener implements Listener {
@@ -47,6 +48,7 @@ public class BlockBreakListener implements Listener {
         Player player = event.getPlayer();
         Block block = event.getBlock();
         String blockIdentifier = miningManager.getBlockIdentifier(block); // Gunakan helper dari MiningManager
+        Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
 
         debug(player, blockIdentifier, "BlockBreakEvent triggered by " + player.getName());
 
@@ -71,11 +73,11 @@ public class BlockBreakListener implements Listener {
         }
 
         // --- DAPATKAN BLOCK DATA LEBIH AWAL ---
-        BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier);
+        BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier, regionNames);
 
         // --- PENGECEKAN BARU: JIKA BLOK INI DIATUR OLEH LISTENER BARU, ABAIKAN EVENT INI ---
-        if (data != null && data.hasCustomBreakDuration() && data.isFixedDuration()) {
-            debug(player, blockIdentifier, "Block has fixed duration. &cIgnoring BlockBreakEvent&7 (handled by BlockMiningListener).");
+        if (data != null && data.hasCustomBreakDuration()) {
+            debug(player, blockIdentifier, "Block has custom break duration. &cIgnoring BlockBreakEvent&7 (handled by BlockMiningListener).");
             event.setCancelled(true); // Batalkan event untuk mencegah vanilla break jika terjadi lag
             return;
         }
@@ -91,7 +93,7 @@ public class BlockBreakListener implements Listener {
 
             if (!canBreak) { // Flag is DENY
                 debug(player, blockIdentifier, "WorldGuard check &cfailed&7 (block-break: DENY). Checking for override...");
-                if (plugin.getConfigManager().worldGuardBreakRegenInDenyRegions && plugin.getBlockManager().isRegenBlock(blockIdentifier)) {
+                if (plugin.getConfigManager().worldGuardBreakRegenInDenyRegions && plugin.getBlockManager().isRegenBlockInRegion(blockIdentifier, regionNames)) {
                     debug(player, blockIdentifier, "Override enabled and block is a regen block. &aForcing event to proceed.");
                     event.setCancelled(false); // Force the event to proceed
                 } else {
@@ -101,7 +103,7 @@ public class BlockBreakListener implements Listener {
             } else { // Flag is ALLOW
                 if (plugin.getConfigManager().worldGuardDisableOtherBreak) {
                     debug(player, blockIdentifier, "'worldGuardDisableOtherBreak' is enabled.");
-                    if (!plugin.getBlockManager().isRegenBlock(blockIdentifier)) {
+                    if (!plugin.getBlockManager().isRegenBlockInRegion(blockIdentifier, regionNames)) {
                         if (plugin.isPlayerBypassing(player)) {
                             debug(player, blockIdentifier, "Player is in bypass mode. &aAllowing normal block break.");
                             return;
@@ -121,7 +123,7 @@ public class BlockBreakListener implements Listener {
             return;
         }
 
-        if (!plugin.getBlockManager().isRegenBlock(blockIdentifier)) {
+        if (!plugin.getBlockManager().isRegenBlockInRegion(blockIdentifier, regionNames)) {
             debug(player, blockIdentifier, "Block '" + blockIdentifier + "' is not a configured regen block. &cIgnoring.");
             return;
         }
@@ -144,14 +146,17 @@ public class BlockBreakListener implements Listener {
             }
         }
 
-        if (!plugin.getRegionManager().isLocationInRegion(block.getLocation())) {
-            debug(player, blockIdentifier, "Location is not within a defined BlockRegen region. &cIgnoring.");
+        boolean inSupportedRegion = plugin.getConfigManager().worldGuardEnabled
+                ? plugin.getRegionManager().isLocationInAnySupportedRegion(block.getLocation())
+                : plugin.getRegionManager().isLocationInRegion(block.getLocation());
+        if (!inSupportedRegion) {
+            debug(player, blockIdentifier, "Location is not inside a supported region (BlockRegen/WorldGuard). &cIgnoring.");
             if (player.hasPermission("blockregen.admin")) {
                 player.sendMessage(plugin.getConfigManager().notInRegionMessage);
             }
             return;
         }
-        debug(player, blockIdentifier, "Location is within a BlockRegen region. &aContinuing...");
+        debug(player, blockIdentifier, "Location is within a supported region. &aContinuing...");
         if (plugin.getRegenManager().isRegenerating(block.getLocation())) {
             debug(player, blockIdentifier, "Block is already regenerating. &cCancelling event.");
             event.setCancelled(true);
@@ -178,8 +183,9 @@ public class BlockBreakListener implements Listener {
             }
             if (!toolMatches) {
                 debug(player, blockIdentifier, "&cTool requirement not met. Player's item: &f" + itemInHand.getType());
-                player.sendMessage(plugin.getConfigManager().wrongToolMessage);
-                SoundUtil.playSound(block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
+                String requiredTools = miningManager.formatRequiredTools(data);
+                player.sendMessage(plugin.getConfigManager().wrongToolMessage.replace("%tool%", requiredTools));
+                SoundUtil.playSoundToPlayer(player, block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
                 event.setCancelled(true);
                 return;
             }

@@ -4,8 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.task.RegenTask;
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.TextComponent;
+import me.allync.blockregen.util.DurationFormatUtil;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.block.BlockState;
 import org.bukkit.entity.Player;
@@ -20,9 +21,24 @@ public class RegenManager {
         this.plugin = plugin;
     }
 
-    public void startRegen(BlockState originalState, int delay, String blockIdentifier) {
+    public void startRegen(BlockState originalState, int delay, String blockIdentifier, String regenVariantIdentifier) {
         this.regeneratingBlocks.put(originalState.getLocation(), originalState);
-        (new RegenTask(this.plugin, this, originalState, blockIdentifier)).runTaskLater((Plugin)this.plugin, delay * 20L);
+        (new RegenTask(this.plugin, this, originalState, blockIdentifier, regenVariantIdentifier)).runTaskLater((Plugin)this.plugin, delay * 20L);
+    }
+
+    public void startRelocationCooldown(BlockState stateDuringCooldown, int delaySeconds, Runnable onFinish) {
+        if (stateDuringCooldown == null || stateDuringCooldown.getLocation() == null) {
+            return;
+        }
+
+        Location location = stateDuringCooldown.getLocation();
+        this.regeneratingBlocks.put(location, stateDuringCooldown);
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            removeRegenerating(location);
+            if (onFinish != null) {
+                onFinish.run();
+            }
+        }, Math.max(1L, delaySeconds * 20L));
     }
 
     public boolean isRegenerating(Location location) {
@@ -46,8 +62,12 @@ public class RegenManager {
      */
     public void sendActionBarMessage(Player player, int delay) {
         if (plugin.getConfigManager().sendRegenCountdown) {
-            player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
-                    new TextComponent(plugin.getConfigManager().regenCountdownMessage.replace("%time%", String.valueOf(delay))));
+            String formattedTime = DurationFormatUtil.formatDurationSeconds(delay);
+            String message = plugin.getConfigManager().regenCountdownMessage
+                    .replace("%time%s", formattedTime)
+                    .replace("%time%", formattedTime);
+            Component actionbar = LegacyComponentSerializer.legacySection().deserialize(message);
+            player.sendActionBar(actionbar);
         }
     }
 }

@@ -1,5 +1,9 @@
 package me.allync.blockregen.manager;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.Region;
 import org.bukkit.Bukkit;
@@ -100,6 +104,60 @@ public class RegionManager {
             }
         }
         return false;
+    }
+
+    public Region getRegionAt(Location location) {
+        if (location == null || regions.isEmpty()) {
+            return null;
+        }
+        for (Region region : regions) {
+            if (region.contains(location)) {
+                return region;
+            }
+        }
+        return null;
+    }
+
+    public String getRegionNameAt(Location location) {
+        Region region = getRegionAt(location);
+        return region != null ? region.getName() : null;
+    }
+
+    public Set<String> getRegionNamesAt(Location location) {
+        Set<String> names = new HashSet<>();
+        if (location == null || location.getWorld() == null) {
+            return names;
+        }
+
+        // Internal BlockRegen regions
+        Region internal = getRegionAt(location);
+        if (internal != null && internal.getName() != null) {
+            names.add(internal.getName().toLowerCase());
+        }
+
+        // WorldGuard regions
+        if (plugin.getConfigManager().worldGuardEnabled && plugin.getWorldGuardPlugin() != null) {
+            try {
+                com.sk89q.worldguard.protection.managers.RegionManager wgRegionManager =
+                        WorldGuard.getInstance().getPlatform().getRegionContainer().get(BukkitAdapter.adapt(location.getWorld()));
+                if (wgRegionManager != null) {
+                    BlockVector3 position = BlockVector3.at(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+                    for (ProtectedRegion region : wgRegionManager.getApplicableRegions(position)) {
+                        if (region.getId() != null && !region.getId().isEmpty()) {
+                            names.add(region.getId().toLowerCase());
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // Keep internal region behavior if WG query fails.
+            }
+        }
+
+        return names;
+    }
+
+    public boolean isLocationInAnySupportedRegion(Location location) {
+        return !getRegionNamesAt(location).isEmpty();
     }
 
     public void setPos1(Player player, Location location) {

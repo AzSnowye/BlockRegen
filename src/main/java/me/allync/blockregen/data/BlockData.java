@@ -3,14 +3,18 @@ package me.allync.blockregen.data;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class BlockData {
 
     private final Material replacedBlock;
     private final int regenDelay;
+    private final Set<String> allowedRegions;
     private final List<ToolRequirement> requiredTools;
     private final boolean autoInventory;
     private final boolean naturalDrop;
@@ -18,11 +22,14 @@ public class BlockData {
     private final String regenSound;
     private final List<String> commands;
     private final Map<String, CustomDrop> customDrops;
+    private final boolean singleCustomDropRoll;
+    private final List<RegenVariant> regenVariants;
     private final String breakParticle;
     private final String regenParticle;
     private final String expDropAmount;
     private final boolean autoPickupExp;
     private final Map<String, Integer> mmocoreExp;
+    private final Map<String, Integer> auraskillsXp;
     private final FortuneData fortuneData; // Diubah dari Map ke single object
 
     // --- BARU ---
@@ -34,7 +41,14 @@ public class BlockData {
     public BlockData(ConfigurationSection section) {
         this.replacedBlock = Material.valueOf(section.getString("replaced-block", "STONE").toUpperCase());
         this.regenDelay = section.getInt("regen-delay", 5);
+        this.allowedRegions = new HashSet<>();
         this.requiredTools = new ArrayList<>();
+
+        for (String regionName : section.getStringList("regions")) {
+            if (regionName != null && !regionName.trim().isEmpty()) {
+                this.allowedRegions.add(regionName.toLowerCase());
+            }
+        }
 
         List<?> toolsList = section.getList("tools-required");
         if (toolsList != null) {
@@ -72,8 +86,16 @@ public class BlockData {
 
         this.autoInventory = section.getBoolean("drops.auto-inventory", false);
         this.naturalDrop = section.getBoolean("drops.natural-drop", true);
-        this.breakSound = section.getString("sounds.break-sound");
-        this.regenSound = section.getString("sounds.regen-sound");
+        this.breakSound = firstNonBlank(section,
+                "sounds.break-sound",
+                "sound.break-sound",
+                "sound.break",
+                "break-sound");
+        this.regenSound = firstNonBlank(section,
+                "sounds.regen-sound",
+                "sound.regen-sound",
+                "sound.regen",
+                "regen-sound");
         this.commands = section.getStringList("commands");
         this.customDrops = new HashMap<>();
         ConfigurationSection customDropsSection = section.getConfigurationSection("custom-drops");
@@ -85,8 +107,44 @@ public class BlockData {
                 }
             }
         }
-        this.breakParticle = section.getString("particles.break-particle");
-        this.regenParticle = section.getString("particles.regen-particle");
+        // If true, only one custom drop entry is selected per block break.
+        this.singleCustomDropRoll = section.getBoolean("drops.single-custom-drop-roll", false);
+
+        this.regenVariants = new ArrayList<>();
+        ConfigurationSection regenVariantsSection = section.getConfigurationSection("regen-blocks");
+        if (regenVariantsSection == null) {
+            regenVariantsSection = section.getConfigurationSection("regen-block-variants");
+        }
+        if (regenVariantsSection != null) {
+            for (String key : regenVariantsSection.getKeys(false)) {
+                ConfigurationSection variantSection = regenVariantsSection.getConfigurationSection(key);
+                if (variantSection != null) {
+                    String blockIdentifier = variantSection.getString("block", key);
+                    double chance = variantSection.getDouble("chance", 0.0);
+                    if (blockIdentifier != null && !blockIdentifier.isEmpty() && chance > 0.0) {
+                        this.regenVariants.add(new RegenVariant(blockIdentifier, chance));
+                    }
+                } else {
+                    Object raw = regenVariantsSection.get(key);
+                    if (raw instanceof Number) {
+                        double chance = ((Number) raw).doubleValue();
+                        if (chance > 0.0) {
+                            this.regenVariants.add(new RegenVariant(key, chance));
+                        }
+                    }
+                }
+            }
+        }
+        this.breakParticle = firstNonBlank(section,
+                "particles.break-particle",
+                "particle.break-particle",
+                "particle.break",
+                "break-particle");
+        this.regenParticle = firstNonBlank(section,
+                "particles.regen-particle",
+                "particle.regen-particle",
+                "particle.regen",
+                "regen-particle");
 
         if (section.isSet("exp-drop-amount")) {
             this.expDropAmount = section.getString("exp-drop-amount", "0");
@@ -102,6 +160,15 @@ public class BlockData {
             for (String professionId : mmocoreSection.getKeys(false)) {
                 int exp = mmocoreSection.getInt(professionId);
                 this.mmocoreExp.put(professionId.toLowerCase(), exp);
+            }
+        }
+
+        this.auraskillsXp = new HashMap<>();
+        ConfigurationSection auraSkillsSection = section.getConfigurationSection("auraskills-xp");
+        if (auraSkillsSection != null) {
+            for (String skillId : auraSkillsSection.getKeys(false)) {
+                int exp = auraSkillsSection.getInt(skillId);
+                this.auraskillsXp.put(skillId.toLowerCase(), exp);
             }
         }
 
@@ -149,6 +216,24 @@ public class BlockData {
         }
     }
 
+    public static class RegenVariant {
+        private final String blockIdentifier;
+        private final double chance;
+
+        public RegenVariant(String blockIdentifier, double chance) {
+            this.blockIdentifier = blockIdentifier;
+            this.chance = chance;
+        }
+
+        public String getBlockIdentifier() {
+            return blockIdentifier;
+        }
+
+        public double getChance() {
+            return chance;
+        }
+    }
+
     private String getVanillaExpDrop(String blockName) {
         switch (blockName.toUpperCase()) {
             case "COAL_ORE": case "DEEPSLATE_COAL_ORE": return "0-2";
@@ -162,12 +247,58 @@ public class BlockData {
         }
     }
 
+    private String firstNonBlank(ConfigurationSection section, String... paths) {
+        if (section == null || paths == null) {
+            return null;
+        }
+        for (String path : paths) {
+            String value = section.getString(path);
+            if (value != null && !value.trim().isEmpty()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     public Material getReplacedBlock() {
         return replacedBlock;
     }
 
     public int getRegenDelay() {
         return regenDelay;
+    }
+
+    public boolean hasRegionRestriction() {
+        return !allowedRegions.isEmpty();
+    }
+
+    public boolean isRegionAllowed(String regionName) {
+        if (!hasRegionRestriction()) {
+            return true;
+        }
+        if (regionName == null || regionName.isEmpty()) {
+            return false;
+        }
+        return allowedRegions.contains(regionName.toLowerCase());
+    }
+
+    public boolean isRegionAllowed(Collection<String> regionNames) {
+        if (!hasRegionRestriction()) {
+            return true;
+        }
+        if (regionNames == null || regionNames.isEmpty()) {
+            return false;
+        }
+        for (String regionName : regionNames) {
+            if (regionName != null && allowedRegions.contains(regionName.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Set<String> getAllowedRegions() {
+        return allowedRegions;
     }
 
     public List<ToolRequirement> getRequiredTools() {
@@ -206,6 +337,18 @@ public class BlockData {
         return customDrops;
     }
 
+    public boolean isSingleCustomDropRoll() {
+        return singleCustomDropRoll;
+    }
+
+    public boolean hasRegenVariants() {
+        return !regenVariants.isEmpty();
+    }
+
+    public List<RegenVariant> getRegenVariants() {
+        return regenVariants;
+    }
+
     public String getBreakParticle() {
         return breakParticle;
     }
@@ -228,6 +371,14 @@ public class BlockData {
 
     public boolean hasMmocoreExp() {
         return this.mmocoreExp != null && !this.mmocoreExp.isEmpty();
+    }
+
+    public Map<String, Integer> getAuraskillsXp() {
+        return auraskillsXp;
+    }
+
+    public boolean hasAuraskillsXp() {
+        return this.auraskillsXp != null && !this.auraskillsXp.isEmpty();
     }
 
     public FortuneData getFortuneData() {

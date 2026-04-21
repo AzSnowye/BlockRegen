@@ -7,8 +7,11 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.logging.Level;
 
 public class BlockManager {
@@ -57,6 +60,22 @@ public class BlockManager {
         return blockDataMap.get(identifier.toUpperCase());
     }
 
+    public BlockData getBlockData(String identifier, String regionName) {
+        BlockData data = getBlockData(identifier);
+        if (data == null) {
+            return null;
+        }
+        return data.isRegionAllowed(regionName) ? data : null;
+    }
+
+    public BlockData getBlockData(String identifier, Collection<String> regionNames) {
+        BlockData data = getBlockData(identifier);
+        if (data == null) {
+            return null;
+        }
+        return data.isRegionAllowed(regionNames) ? data : null;
+    }
+
     /**
      * Checks if a block identifier is a configured regen block.
      * @param identifier The block identifier (e.g., "DIAMOND_ORE" or "itemsadder:ruby_ore").
@@ -64,5 +83,21 @@ public class BlockManager {
      */
     public boolean isRegenBlock(String identifier) {
         return blockDataMap.containsKey(identifier.toUpperCase());
+    }
+
+    public boolean isRegenBlockInRegion(String identifier, String regionName) {
+        return getBlockData(identifier, regionName) != null;
+    }
+
+    public boolean isRegenBlockInRegion(String identifier, Collection<String> regionNames) {
+        return getBlockData(identifier, regionNames) != null;
+    }
+
+    public Set<String> getConfiguredIdentifiers() {
+        Set<String> identifiers = new HashSet<>();
+        for (String key : blockDataMap.keySet()) {
+            identifiers.add(key.contains(":") ? key.toLowerCase() : key);
+        }
+        return identifiers;
     }
 }

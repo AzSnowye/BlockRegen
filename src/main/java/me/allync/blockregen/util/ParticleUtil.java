@@ -4,6 +4,8 @@ import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.World;
 
+import java.util.Locale;
+
 public class ParticleUtil {
 
     public static void spawnParticle(Location location, String particleString) {
@@ -16,11 +18,9 @@ public class ParticleUtil {
             return;
         }
 
-        Particle particle;
-        try {
-            particle = Particle.valueOf(parts[0].toUpperCase());
-        } catch (IllegalArgumentException e) {
-            // Invalid particle name
+        Particle particle = resolveParticle(parts[0]);
+        if (particle == null) {
+            System.err.println("[BlockRegen] Invalid particle format: " + particleString);
             return;
         }
 
@@ -45,6 +45,25 @@ public class ParticleUtil {
         World world = location.getWorld();
         if (world != null) {
             world.spawnParticle(particle, location, count, offset, offset, offset);
+        }
+    }
+
+    private static Particle resolveParticle(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+
+        String normalized = raw.trim();
+        if (normalized.contains(":")) {
+            normalized = normalized.substring(normalized.indexOf(':') + 1);
+        }
+
+        normalized = normalized.replace('.', '_').replace('-', '_').toUpperCase(Locale.ROOT);
+
+        try {
+            return Particle.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return null;
         }
     }
 }

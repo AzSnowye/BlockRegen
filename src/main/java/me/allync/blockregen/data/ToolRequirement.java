@@ -113,4 +113,38 @@ public class ToolRequirement {
                 ", lore=" + lore +
                 '}';
     }
+
+    public String getDisplayName() {
+        if (name != null && !name.isEmpty()) {
+            return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', name));
+        }
+
+        if (material != null) {
+            return prettify(material.name());
+        }
+
+        if (customMaterialId != null && !customMaterialId.isEmpty()) {
+            String[] parts = customMaterialId.split(":");
+            String base = parts[parts.length - 1];
+            return prettify(base);
+        }
+
+        return "Tool";
+    }
+
+    private String prettify(String value) {
+        String lowered = value.toLowerCase().replace('_', ' ');
+        String[] words = lowered.split(" ");
+        StringBuilder builder = new StringBuilder();
+        for (String word : words) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            if (!builder.isEmpty()) {
+                builder.append(' ');
+            }
+            builder.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+        }
+        return builder.isEmpty() ? value : builder.toString();
+    }
 }

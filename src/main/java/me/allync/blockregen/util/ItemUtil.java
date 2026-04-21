@@ -17,9 +17,14 @@ import java.util.stream.Collectors;
 public class ItemUtil {
 
     private static boolean mmoItemsEnabled = false;
+    private static boolean nexoEnabled = false;
 
     public static void setMmoItemsEnabled(boolean enabled) {
         mmoItemsEnabled = enabled;
+    }
+
+    public static void setNexoEnabled(boolean enabled) {
+        nexoEnabled = enabled;
     }
 
     /**
@@ -39,7 +44,13 @@ public class ItemUtil {
 
         ItemStack item = null;
 
-        if (mmoItemsEnabled && materialString.toLowerCase().startsWith("mmoitems:")) {
+        if (nexoEnabled && materialString.toLowerCase().startsWith("nexo:")) {
+            item = NexoUtil.createNexoItemStack(materialString);
+            if (item == null) {
+                System.err.println("[BlockRegen] Tidak dapat menemukan item Nexo dengan ID '" + materialString + "'.");
+                return null;
+            }
+        } else if (mmoItemsEnabled && materialString.toLowerCase().startsWith("mmoitems:")) {
             String[] parts = materialString.split(":");
             if (parts.length == 3) { // Format: "mmoitems:TYPE:ID"
                 String typeName = parts[1];
@@ -76,7 +87,7 @@ public class ItemUtil {
         }
 
         if (item == null) {
-            if (!materialString.toLowerCase().startsWith("mmoitems:") && !(BlockRegen.itemsAdderEnabled && materialString.contains(":"))) {
+            if (!materialString.toLowerCase().startsWith("mmoitems:") && !(BlockRegen.itemsAdderEnabled && materialString.contains(":")) && !(nexoEnabled && materialString.toLowerCase().startsWith("nexo:"))) {
                 System.err.println("[BlockRegen] Gagal membuat item dari string material: " + materialString);
             }
             return null;

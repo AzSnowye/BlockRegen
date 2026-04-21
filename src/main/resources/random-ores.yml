@@ -1,0 +1,32 @@
+# Sistem random spawn ore (anti-AFK).
+# Tambahkan titik dengan command:
+# /regen block set <region> <id_block>
+
+settings:
+  enabled: false
+  interval-seconds: 30
+  # Mode ekstra: titik yang baru dipecah tidak boleh langsung dipakai lagi.
+  strict-relocate:
+    enabled: true
+    min-cycles: 1
+    max-cycles: 2
+
+regions:
+  # Contoh:
+  # twn_m1:
+  #   max-active: 5
+  #   # Semua points dari block di region ini akan digabung jadi satu pool.
+  #   # Jenis block yang muncul di tiap point akan di-roll berdasarkan spawn-chance.
+  #   blocks:
+  #     "nexo:agate_ore":
+  #       spawn-chance: 80.0
+  #       empty-block: STONE
+  #       points:
+  #         - world_mining,100,64,100
+  #         - world_mining,101,64,100
+  #     "nexo:agate_deepslate":
+  #       spawn-chance: 35.0
+  #       empty-block: STONE
+  #       points:
+  #         - world_mining,102,64,100
+  #         - world_mining,103,64,100

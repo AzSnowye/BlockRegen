@@ -9,12 +9,13 @@ import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.sk89q.worldguard.protection.regions.RegionQuery;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.BlockData;
+import me.allync.blockregen.data.MiningProgressState;
+import me.allync.blockregen.data.MiningTargetKey;
 import me.allync.blockregen.data.ToolRequirement;
 import me.allync.blockregen.manager.MiningManager;
-import me.allync.blockregen.task.PlayerMiningTask; // <-- IMPORT BARU
+import me.allync.blockregen.task.PlayerMiningTask;
 import me.allync.blockregen.util.SoundUtil;
 import org.bukkit.GameMode;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -22,12 +23,19 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockDamageEvent;
+import org.bukkit.event.player.PlayerAnimationEvent;
+import org.bukkit.event.player.PlayerAnimationType;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
-// Hapus PotionEffect imports
+import org.bukkit.permissions.PermissionAttachmentInfo;
 
-import java.util.HashMap; // <-- IMPORT BARU
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -36,16 +44,20 @@ import java.util.UUID;
  */
 public class BlockMiningListener implements Listener {
 
+    private static final String TOUCH_PERMISSION_PREFIX = "blockregen.multiplier.block.";
+
     private final BlockRegen plugin;
     private final MiningManager miningManager;
 
-    // --- NEW MAP TO TRACK ACTIVE TASKS ---
     private final Map<UUID, PlayerMiningTask> activeMiningTasks = new HashMap<>();
+    private final Map<MiningTargetKey, UUID> activeBlockMiners = new HashMap<>();
+    private final Map<UUID, Long> mineConflictMessageCooldown = new HashMap<>();
+    private final Map<MiningTargetKey, MiningProgressState> persistedProgress = new HashMap<>();
+    private final Map<UUID, Map<MiningTargetKey, Long>> playerTouchedBlocks = new HashMap<>();
 
     public BlockMiningListener(BlockRegen plugin) {
         this.plugin = plugin;
         this.miningManager = plugin.getMiningManager();
-        // Old maps (playerBreakTime, playerMiningLocation, playerLastHitTime) are removed
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -53,6 +65,7 @@ public class BlockMiningListener implements Listener {
         Player player = event.getPlayer();
         Block block = event.getBlock();
         String blockIdentifier = miningManager.getBlockIdentifier(block);
+        Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
 
         // --- 1. Initial Checks ---
         if (player.getGameMode() != GameMode.SURVIVAL) return; // Only survival
@@ -68,20 +81,19 @@ public class BlockMiningListener implements Listener {
         }
 
         // --- 2. Get BlockData & Check if this listener should handle it ---
-        BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier);
-        if (data == null || !data.hasCustomBreakDuration() || !data.isFixedDuration()) {
+        BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier, regionNames);
+        if (data == null || !data.hasCustomBreakDuration()) {
             // BlockBreakListener will handle it.
             return;
         }
-
-        // --- 5. Custom Breaking Logic ---
-
-        // --- NEW MAIN LOGIC ---
 
         // Stop vanilla breaking
         event.setCancelled(true);
 
         UUID uuid = player.getUniqueId();
+        MiningTargetKey blockKey = MiningTargetKey.from(block.getLocation());
+
+        cleanupExpiredProgress(blockKey);
 
         // Check if player is already mining
         PlayerMiningTask existingTask = activeMiningTasks.get(uuid);
@@ -93,7 +105,25 @@ public class BlockMiningListener implements Listener {
                 // Continue to create a new task below
             } else {
                 // Player is hitting the same block, task is already running.
-                // Do nothing.
+                // Refresh hit state; mining stops if player only holds click.
+                existingTask.registerHit();
+                return;
+            }
+        }
+
+        if (!canPlayerTouchBlock(player, blockKey)) {
+            player.sendMessage(plugin.getConfigManager().touchLimitReachedMessage);
+            return;
+        }
+
+        UUID ownerUuid = activeBlockMiners.get(blockKey);
+        if (ownerUuid != null && !ownerUuid.equals(uuid)) {
+            PlayerMiningTask ownerTask = activeMiningTasks.get(ownerUuid);
+            if (ownerTask == null) {
+                // Stale lock from an interrupted task, recover automatically.
+                activeBlockMiners.remove(blockKey);
+            } else {
+                maybeSendMineConflictMessage(player);
                 return;
             }
         }
@@ -112,7 +142,7 @@ public class BlockMiningListener implements Listener {
                 }
             } else { // ALLOW
                 if (plugin.getConfigManager().worldGuardDisableOtherBreak) {
-                    if (!plugin.getBlockManager().isRegenBlock(blockIdentifier)) {
+                    if (!plugin.getBlockManager().isRegenBlockInRegion(blockIdentifier, regionNames)) {
                         if (!plugin.isPlayerBypassing(player)) {
                             miningManager.debug(player, blockIdentifier, "Block is not a regen block. &cCancelling event due to WG config.");
                             return;
@@ -123,8 +153,11 @@ public class BlockMiningListener implements Listener {
         }
 
         // --- 4. Further Checks (Region, Regenerating, Tool) ---
-        if (!plugin.getRegionManager().isLocationInRegion(block.getLocation())) {
-            miningManager.debug(player, blockIdentifier, "Location is not within a BlockRegen region. &cIgnoring.");
+        boolean inSupportedRegion = plugin.getConfigManager().worldGuardEnabled
+                ? plugin.getRegionManager().isLocationInAnySupportedRegion(block.getLocation())
+                : plugin.getRegionManager().isLocationInRegion(block.getLocation());
+        if (!inSupportedRegion) {
+            miningManager.debug(player, blockIdentifier, "Location is not inside a supported region (BlockRegen/WorldGuard). &cIgnoring.");
             return;
         }
 
@@ -144,18 +177,73 @@ public class BlockMiningListener implements Listener {
             }
             if (!toolMatches) {
                 miningManager.debug(player, blockIdentifier, "&cTool requirement not met.");
-                player.sendMessage(plugin.getConfigManager().wrongToolMessage);
-                SoundUtil.playSound(block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
+                String requiredTools = miningManager.formatRequiredTools(data);
+                player.sendMessage(plugin.getConfigManager().wrongToolMessage.replace("%tool%", requiredTools));
+                SoundUtil.playSoundToPlayer(player, block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
                 return;
             }
         }
 
         // --- 6. Create and Start New Task ---
         miningManager.debug(player, blockIdentifier, "Started mining. Total time: " + data.getBreakDuration() + "s");
-        PlayerMiningTask newTask = new PlayerMiningTask(plugin, player, block, data, blockIdentifier, activeMiningTasks);
+        registerTouch(player, blockKey);
+
+        long resumedElapsedMs = 0L;
+        MiningProgressState savedState = persistedProgress.get(blockKey);
+        if (savedState != null) {
+            resumedElapsedMs = savedState.getElapsedMs();
+        }
+
+        activeBlockMiners.put(blockKey, uuid);
+        PlayerMiningTask newTask = new PlayerMiningTask(
+                plugin,
+                player,
+                block,
+                data,
+                blockIdentifier,
+                activeMiningTasks,
+                activeBlockMiners,
+                persistedProgress,
+                blockKey,
+                resumedElapsedMs
+        );
         newTask.runTaskTimer(plugin, 0L, 1L); // Run every 1 tick
 
         activeMiningTasks.put(uuid, newTask);
+    }
+
+    private void maybeSendMineConflictMessage(Player player) {
+        long now = System.currentTimeMillis();
+        long lastSent = mineConflictMessageCooldown.getOrDefault(player.getUniqueId(), 0L);
+        if (now - lastSent < 750L) {
+            return;
+        }
+        mineConflictMessageCooldown.put(player.getUniqueId(), now);
+        player.sendMessage(plugin.getConfigManager().blockBeingMinedMessage);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPlayerAnimation(PlayerAnimationEvent event) {
+        if (event.getAnimationType() != PlayerAnimationType.ARM_SWING) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        PlayerMiningTask activeTask = activeMiningTasks.get(player.getUniqueId());
+        if (activeTask == null) {
+            return;
+        }
+
+        Block targetBlock;
+        try {
+            targetBlock = player.getTargetBlockExact(5);
+        } catch (IllegalStateException ignored) {
+            return;
+        }
+
+        if (targetBlock != null && targetBlock.getLocation().equals(activeTask.getBlockLocation())) {
+            activeTask.registerHit();
+        }
     }
 
     @EventHandler
@@ -166,5 +254,107 @@ public class BlockMiningListener implements Listener {
         if (existingTask != null) {
             existingTask.cancelTask();
         }
+        mineConflictMessageCooldown.remove(uuid);
+        playerTouchedBlocks.remove(uuid);
+    }
+
+    @EventHandler
+    public void onPlayerKick(PlayerKickEvent event) {
+        cancelTaskFor(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        cancelTaskFor(event.getEntity().getUniqueId());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerTeleport(PlayerTeleportEvent event) {
+        if (event.getFrom().getWorld() == null || event.getTo() == null || event.getTo().getWorld() == null) {
+            return;
+        }
+        if (!event.getFrom().getWorld().getUID().equals(event.getTo().getWorld().getUID())) {
+            cancelTaskFor(event.getPlayer().getUniqueId());
+        }
+    }
+
+    @EventHandler
+    public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
+        cancelTaskFor(event.getPlayer().getUniqueId());
+    }
+
+    public void shutdown() {
+        for (PlayerMiningTask task : activeMiningTasks.values()) {
+            if (task != null) {
+                task.cancelTask();
+            }
+        }
+        activeMiningTasks.clear();
+        activeBlockMiners.clear();
+        mineConflictMessageCooldown.clear();
+        playerTouchedBlocks.clear();
+        persistedProgress.clear();
+    }
+
+    private void cancelTaskFor(UUID uuid) {
+        PlayerMiningTask existingTask = activeMiningTasks.get(uuid);
+        if (existingTask != null) {
+            existingTask.cancelTask();
+        }
+        mineConflictMessageCooldown.remove(uuid);
+        playerTouchedBlocks.remove(uuid);
+    }
+
+    private void cleanupExpiredProgress(MiningTargetKey blockKey) {
+        MiningProgressState state = persistedProgress.get(blockKey);
+        if (state == null) {
+            return;
+        }
+        if (System.currentTimeMillis() - state.getUpdatedAtMs() > plugin.getConfigManager().miningResumeTimeoutMs) {
+            persistedProgress.remove(blockKey);
+        }
+    }
+
+    private boolean canPlayerTouchBlock(Player player, MiningTargetKey blockKey) {
+        long now = System.currentTimeMillis();
+        Map<MiningTargetKey, Long> touches = playerTouchedBlocks.computeIfAbsent(player.getUniqueId(), key -> new HashMap<>());
+        touches.entrySet().removeIf(entry -> now - entry.getValue() > plugin.getConfigManager().miningResumeTimeoutMs);
+
+        if (touches.containsKey(blockKey)) {
+            return true;
+        }
+
+        int limit = getPlayerTouchLimit(player);
+        return touches.size() < limit;
+    }
+
+    private void registerTouch(Player player, MiningTargetKey blockKey) {
+        Map<MiningTargetKey, Long> touches = playerTouchedBlocks.computeIfAbsent(player.getUniqueId(), key -> new HashMap<>());
+        touches.put(blockKey, System.currentTimeMillis());
+    }
+
+    private int getPlayerTouchLimit(Player player) {
+        int limit = plugin.getConfigManager().miningDefaultTouchLimit;
+        for (PermissionAttachmentInfo permissionInfo : player.getEffectivePermissions()) {
+            if (!permissionInfo.getValue()) {
+                continue;
+            }
+
+            String permission = permissionInfo.getPermission().toLowerCase();
+            if (!permission.startsWith(TOUCH_PERMISSION_PREFIX)) {
+                continue;
+            }
+
+            String valuePart = permission.substring(TOUCH_PERMISSION_PREFIX.length());
+            try {
+                int extra = Integer.parseInt(valuePart);
+                if (extra > 0) {
+                    limit += extra;
+                }
+            } catch (NumberFormatException ignored) {
+                // Ignore malformed permission nodes.
+            }
+        }
+        return Math.max(plugin.getConfigManager().miningDefaultTouchLimit, limit);
     }
 }

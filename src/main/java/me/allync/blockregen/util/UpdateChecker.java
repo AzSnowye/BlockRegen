@@ -1,9 +1,7 @@
 package me.allync.blockregen.util;
 
 import me.allync.blockregen.BlockRegen;
-import me.allync.blockregen.manager.ConfigManager;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -15,13 +13,17 @@ import java.net.URL;
 public class UpdateChecker {
 
     private final BlockRegen plugin;
-    private final int RESOURCE_ID = 128152; // REPLACE WITH YOUR SPIGOTMC RESOURCE ID
+    private final int RESOURCE_ID = 715001;
 
     public UpdateChecker(BlockRegen plugin) {
         this.plugin = plugin;
     }
 
     public void check() {
+        if (RESOURCE_ID <= 0) {
+            return;
+        }
+
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -51,11 +53,9 @@ public class UpdateChecker {
                                 p.sendMessage(updateMessage);
                             }
                         }
-                    } else {
-                        plugin.getLogger().info(ChatColor.GREEN + "[BlockRegen] You are running the latest version.");
                     }
                 } catch (Exception e) {
-                    plugin.getLogger().warning(ChatColor.RED + "[BlockRegen] Failed to check for updates: " + e.getMessage());
+                    plugin.getLogger().warning("[BlockRegen] Gagal cek update: " + e.getMessage());
                 }
             }
         }.runTaskAsynchronously(plugin);

@@ -3,7 +3,7 @@ version: '2.5'
 main: me.allync.blockregen.BlockRegen
 api-version: '1.21'
 loadbefore: []
-softdepend: [WorldGuard, ItemsAdder, MMOItems, MMOCore, Vault, CoinsEngine]
+softdepend: [WorldGuard, ItemsAdder, MMOItems, MMOCore, AuraSkills, FancyHolograms, Vault, CoinsEngine, Nexo]
 author: Allync
 description: A highly optimized and configurable block regeneration plugin.
 commands:
@@ -23,4 +23,7 @@ permissions:
   blockregen.multiplier.admin:
     description: Allows admin to use /rm admin commands like /rm set.
     default: op
+  blockregen.multiplier.block.*:
+    description: Adds extra block touch limit using nodes like blockregen.multiplier.block.<number>.
+    default: false
 
