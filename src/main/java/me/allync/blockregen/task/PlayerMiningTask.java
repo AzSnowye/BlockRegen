@@ -167,7 +167,14 @@ public class PlayerMiningTask extends BukkitRunnable {
 
             sendSafeBlockDamage(1.0f);
 
-            miningManager.processBlockBreak(player, block, data, originalState, blockIdentifier);
+            // Fire BlockBreakEvent manually so other plugins (like AdvancedEnchantments Veinminer) can hook into it
+            block.setMetadata("blockregen-task-break", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
+            org.bukkit.event.block.BlockBreakEvent event = new org.bukkit.event.block.BlockBreakEvent(block, player);
+            plugin.getServer().getPluginManager().callEvent(event);
+            block.removeMetadata("blockregen-task-break", plugin);
+
+            // BlockBreakListener akan menangkap event ini dan memanggil processBlockBreak secara otomatis
+            // jika event tidak dibatalkan oleh plugin perlindungan/pembatasan lainnya.
 
             clearTaskState(true, false);
 

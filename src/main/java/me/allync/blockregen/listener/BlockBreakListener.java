@@ -77,9 +77,13 @@ public class BlockBreakListener implements Listener {
 
         // --- PENGECEKAN BARU: JIKA BLOK INI DIATUR OLEH LISTENER BARU, ABAIKAN EVENT INI ---
         if (data != null && data.hasCustomBreakDuration()) {
-            debug(player, blockIdentifier, "Block has custom break duration. &cIgnoring BlockBreakEvent&7 (handled by BlockMiningListener).");
-            event.setCancelled(true); // Batalkan event untuk mencegah vanilla break jika terjadi lag
-            return;
+            if (block.hasMetadata("blockbreakevent-ignore") || block.hasMetadata("blockregen-task-break")) {
+                debug(player, blockIdentifier, "Block has custom break duration but metadata allows break. Allowing BlockBreakEvent.");
+            } else {
+                debug(player, blockIdentifier, "Block has custom break duration. &cIgnoring BlockBreakEvent&7 (handled by BlockMiningListener).");
+                event.setCancelled(true); // Batalkan event untuk mencegah vanilla break jika terjadi lag
+                return;
+            }
         }
         // --- AKHIR PENGECEKAN BARU ---
 
