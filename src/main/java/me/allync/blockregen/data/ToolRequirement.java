@@ -80,7 +80,7 @@ public class ToolRequirement {
 
         // --- PEMERIKSAAN NAMA (Opsional) ---
         if (this.name != null) {
-            if (meta == null || !meta.hasDisplayName() || !meta.getDisplayName().equals(ChatColor.translateAlternateColorCodes('&', this.name))) {
+            if (meta == null || !meta.hasDisplayName() || !meta.getDisplayName().equals(me.allync.blockregen.util.ColorUtil.color(this.name))) {
                 return false;
             }
         }
@@ -92,7 +92,7 @@ public class ToolRequirement {
             }
             List<String> itemLore = meta.getLore();
             List<String> requiredLore = this.lore.stream()
-                    .map(line -> ChatColor.translateAlternateColorCodes('&', line))
+                    .map(line -> me.allync.blockregen.util.ColorUtil.color(line))
                     .collect(Collectors.toList());
 
             if (!itemLore.containsAll(requiredLore)) {
@@ -116,7 +116,7 @@ public class ToolRequirement {
 
     public String getDisplayName() {
         if (name != null && !name.isEmpty()) {
-            return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', name));
+            return ChatColor.stripColor(me.allync.blockregen.util.ColorUtil.color(name));
         }
 
         if (material != null) {

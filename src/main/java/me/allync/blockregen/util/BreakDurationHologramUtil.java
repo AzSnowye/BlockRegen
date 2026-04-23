@@ -15,7 +15,8 @@ import java.util.UUID;
 /**
  * Handles temporary per-player mining holograms.
  *
- * Uses lightweight ArmorStand-based holograms and gracefully degrades when unavailable.
+ * Uses lightweight ArmorStand-based holograms and gracefully degrades when
+ * unavailable.
  */
 public final class BreakDurationHologramUtil {
 
@@ -46,8 +47,7 @@ public final class BreakDurationHologramUtil {
         Location hologramLocation = blockLocation.clone().add(
                 plugin.getConfigManager().breakDurationHologramOffsetX,
                 plugin.getConfigManager().breakDurationHologramOffsetY,
-                plugin.getConfigManager().breakDurationHologramOffsetZ
-        );
+                plugin.getConfigManager().breakDurationHologramOffsetZ);
 
         String topText = ChatColor.translateAlternateColorCodes('&', "&eMenambang...");
         String bottomText = formatText(plugin.getConfigManager().breakDurationHologramText, remainingSeconds);
@@ -144,5 +144,3 @@ public final class BreakDurationHologramUtil {
         }
     }
 }
-
-

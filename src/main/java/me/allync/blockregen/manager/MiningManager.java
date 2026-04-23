@@ -122,15 +122,17 @@ public class MiningManager {
         boolean managedRandomPoint = plugin.getRandomOreManager().isEnabled() &&
                 plugin.getRandomOreManager().isManagedPoint(block.getLocation());
 
-        block.setType(data.getReplacedBlock());
-        if (managedRandomPoint) {
-            BlockState cooldownState = block.getState();
-            Location brokenLocation = block.getLocation();
-            plugin.getRegenManager().startRelocationCooldown(cooldownState, data.getRegenDelay(),
-                    () -> plugin.getRandomOreManager().onPointRegenerated(brokenLocation));
-        } else {
-            plugin.getRegenManager().startRegen(originalState, data.getRegenDelay(), blockIdentifier, regenVariantIdentifier);
-        }
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            block.setType(data.getReplacedBlock());
+            if (managedRandomPoint) {
+                BlockState cooldownState = block.getState();
+                Location brokenLocation = block.getLocation();
+                plugin.getRegenManager().startRelocationCooldown(cooldownState, data.getRegenDelay(),
+                        () -> plugin.getRandomOreManager().onPointRegenerated(brokenLocation));
+            } else {
+                plugin.getRegenManager().startRegen(originalState, data.getRegenDelay(), blockIdentifier, regenVariantIdentifier);
+            }
+        }, 1L);
 
         // 7. Send Action Bar Countdown
         if (plugin.getConfigManager().sendRegenCountdown) {
@@ -539,7 +541,7 @@ public class MiningManager {
      */
     public void debug(Player player, String blockIdentifier, String message) {
         if (plugin.isPlayerDebugging(player)) {
-            player.sendMessage(net.md_5.bungee.api.ChatColor.translateAlternateColorCodes('&',
+            player.sendMessage(me.allync.blockregen.util.ColorUtil.color(
                     "&8[&eBlockRegen&8-&6Debug&8] (&b" + blockIdentifier + "&8) &7" + message));
         }
     }

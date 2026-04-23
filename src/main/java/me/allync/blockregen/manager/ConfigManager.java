@@ -132,7 +132,7 @@ public class ConfigManager {
         this.helpTitle = getColoredString("messages.help-title");
         this.helpFooter = getColoredString("messages.help-footer");
         this.helpCommands = this.config.getStringList("messages.help-commands").stream()
-                .map(s -> ChatColor.translateAlternateColorCodes('&', s))
+                .map(s -> me.allync.blockregen.util.ColorUtil.color(s))
                 .collect(Collectors.toList());
 
         try {
@@ -184,7 +184,7 @@ public class ConfigManager {
 
     private String getColoredString(String path) {
         String str = this.config.getString(path, "");
-        return ChatColor.translateAlternateColorCodes('&', str);
+        return me.allync.blockregen.util.ColorUtil.color(str);
     }
 
     /**

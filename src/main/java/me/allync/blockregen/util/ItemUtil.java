@@ -99,11 +99,11 @@ public class ItemUtil {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             if (customDrop.hasName()) {
-                meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', customDrop.getName()));
+                meta.setDisplayName(me.allync.blockregen.util.ColorUtil.color(customDrop.getName()));
             }
             if (customDrop.hasLore()) {
                 List<String> lore = customDrop.getLore().stream()
-                        .map(line -> ChatColor.translateAlternateColorCodes('&', line))
+                        .map(line -> me.allync.blockregen.util.ColorUtil.color(line))
                         .collect(Collectors.toList());
                 meta.setLore(lore);
             }

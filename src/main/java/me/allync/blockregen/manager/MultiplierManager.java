@@ -126,7 +126,7 @@ public class MultiplierManager {
         }
 
         // Load global GUI settings
-        this.guiTitle = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString("gui.title", "&8Multiplier GUI"));
+        this.guiTitle = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString("gui.title", "&8Multiplier GUI"));
         this.guiSize = multiplierConfig.getInt("gui.size", 27);
 
         this.fillItemEnabled = multiplierConfig.getBoolean("gui.fill-item.enabled", false);
@@ -135,7 +135,7 @@ public class MultiplierManager {
         } catch (IllegalArgumentException e) {
             this.fillItemMaterial = Material.BLACK_STAINED_GLASS_PANE;
         }
-        this.fillItemName = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString("gui.fill-item.name", " "));
+        this.fillItemName = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString("gui.fill-item.name", " "));
 
         this.guiItems.clear();
         ConfigurationSection itemsSection = multiplierConfig.getConfigurationSection("gui.items");
@@ -150,25 +150,25 @@ public class MultiplierManager {
                     mat = Material.STONE;
                     plugin.getLogger().warning("Invalid material for GUI item '" + key + "' in multiplier.yml.");
                 }
-                String name = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString(path + ".name"));
+                String name = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString(path + ".name"));
                 List<String> lore = multiplierConfig.getStringList(path + ".lore").stream()
-                        .map(line -> ChatColor.translateAlternateColorCodes('&', line))
+                        .map(line -> me.allync.blockregen.util.ColorUtil.color(line))
                         .collect(Collectors.toList());
                 guiItems.put(key, new ConfigItem(slot, mat, name, lore));
             }
         }
 
         // Load global messages
-        this.successMessage = ChatColor.translateAlternateColorCodes('&',
+        this.successMessage = me.allync.blockregen.util.ColorUtil.color(
                 multiplierConfig.getString("messages.success-message", "&aUpgrade successful!"));
-        this.notEnoughMoneyMessage = ChatColor.translateAlternateColorCodes('&',
+        this.notEnoughMoneyMessage = me.allync.blockregen.util.ColorUtil.color(
                 multiplierConfig.getString("messages.not-enough-money-message", "&cNot enough money!"));
-        this.adminSetSuccessMessage = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString("messages.admin.set-success", "&aSuccess!"));
-        this.adminSetNotifyMessage = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString("messages.admin.set-notify", "&aYour level was set."));
-        this.adminPlayerNotFoundMessage = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString("messages.admin.player-not-found", "&cPlayer not found."));
-        this.adminInvalidLevelMessage = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString("messages.admin.invalid-level", "&cInvalid level."));
-        this.adminUsageMessage = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString("messages.admin.usage", "&cUsage: /rm set <player> <profile> <level>"));
-        this.adminProfileNotFoundMessage = ChatColor.translateAlternateColorCodes('&', multiplierConfig.getString("messages.admin.profile-not-found", "&cProfile not found."));
+        this.adminSetSuccessMessage = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString("messages.admin.set-success", "&aSuccess!"));
+        this.adminSetNotifyMessage = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString("messages.admin.set-notify", "&aYour level was set."));
+        this.adminPlayerNotFoundMessage = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString("messages.admin.player-not-found", "&cPlayer not found."));
+        this.adminInvalidLevelMessage = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString("messages.admin.invalid-level", "&cInvalid level."));
+        this.adminUsageMessage = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString("messages.admin.usage", "&cUsage: /rm set <player> <profile> <level>"));
+        this.adminProfileNotFoundMessage = me.allync.blockregen.util.ColorUtil.color(multiplierConfig.getString("messages.admin.profile-not-found", "&cProfile not found."));
 
     }
 

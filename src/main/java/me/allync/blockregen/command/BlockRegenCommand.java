@@ -255,7 +255,7 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
 
             sender.sendMessage(plugin.getConfigManager().prefix + "&6Debug random cycle:");
             for (String line : lines) {
-                sender.sendMessage(net.md_5.bungee.api.ChatColor.translateAlternateColorCodes('&', line));
+                sender.sendMessage(me.allync.blockregen.util.ColorUtil.color(line));
             }
             return true;
         }
