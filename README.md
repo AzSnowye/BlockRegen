@@ -116,6 +116,15 @@ Placeholder `%player%` is available in all commands. Per-drop commands are also 
 
 ---
 
+### 🔎 Auto-Scan System *(Anti-AFK)*
+- Designate specific block locations that automatically toggle between active (ore) and inactive (placeholder) states.
+- Independent probability roll per block each cycle (`cycle-interval-seconds`).
+- Perfect for "anti-AFK" mining spots without needing complex region pools.
+- Register points easily with `/br scan wand` or by placing blocks in scan-register mode.
+- Supports **Nexo** custom blocks for automatic placement/removal.
+
+---
+
 ### 🪨 Random Ore Spawn System *(Anti-AFK)*
 - Dynamically spawn blocks at pre-defined points on a cycle (`interval-seconds`).
 - Configurable **max active** blocks per region.
@@ -164,6 +173,12 @@ Placeholder `%player%` is available in all commands. Per-drop commands are also 
 | `/regen block refresh [region\|all]` | Immediately refresh random ore positions | `blockregen.admin` |
 | `/regen block spawn <region> <block_id> <count>` | Force spawn random blocks | `blockregen.admin` |
 | `/regen block debug <region>` | View last cycle's selected points | `blockregen.admin` |
+| `/blockregen scan wand` | Receive the Auto-Scan registration wand | `blockregen.admin` |
+| `/blockregen scan list` | List all registered Auto-Scan points | `blockregen.admin` |
+| `/blockregen scan cycle` | Force a manual Auto-Scan rotation cycle | `blockregen.admin` |
+| `/blockregen refresh [all\|world]` | Force-regenerate all pending blocks | `blockregen.admin` |
+| `/blockregen admin status` | View plugin runtime statistics and status | `blockregen.admin` |
+| `/blockregen admin list` | List all blocks currently waiting to regenerate | `blockregen.admin` |
 | `/regenmultiplier` or `/rm` | Open the multiplier upgrade GUI | `blockregen.multiplier.use` |
 | `/rm set <player> <profile> <level>` | Manually set a player's multiplier | `blockregen.multiplier.admin` |
 

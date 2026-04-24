@@ -37,6 +37,10 @@ public class BlockData {
     private final boolean fixedDuration;
     // --- AKHIR BARU ---
 
+    // --- AUTO-SCAN ---
+    private final double autoScanActiveChance; // -1 = use global default from config
+    // --- AKHIR AUTO-SCAN ---
+
     @SuppressWarnings("unchecked")
     public BlockData(ConfigurationSection section) {
         this.replacedBlock = Material.valueOf(section.getString("replaced-block", "STONE").toUpperCase());
@@ -186,6 +190,12 @@ public class BlockData {
         this.breakDuration = section.getDouble("break-duration", 0.0);
         this.fixedDuration = section.getBoolean("fixed-duration", false);
         // --- AKHIR BARU ---
+
+        // --- AUTO-SCAN ---
+        this.autoScanActiveChance = section.isSet("auto-scan.active-chance")
+                ? section.getDouble("auto-scan.active-chance", -1.0)
+                : -1.0;
+        // --- AKHIR AUTO-SCAN ---
     }
 
     public static class FortuneData {
@@ -398,4 +408,14 @@ public class BlockData {
         return this.breakDuration > 0.0;
     }
     // --- AKHIR GETTER BARU ---
+
+    // --- GETTER AUTO-SCAN ---
+    /**
+     * Returns the per-block active-chance for the Auto-Scan system.
+     * Returns -1 if not configured (caller should use the global default).
+     */
+    public double getAutoScanActiveChance() {
+        return autoScanActiveChance;
+    }
+    // --- AKHIR GETTER AUTO-SCAN ---
 }

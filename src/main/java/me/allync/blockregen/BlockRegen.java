@@ -5,6 +5,7 @@ import me.allync.blockregen.command.BlockRegenCommand;
 import me.allync.blockregen.command.RegenMultiplierCommand;
 import me.allync.blockregen.listener.*;
 import me.allync.blockregen.manager.*;
+import me.allync.blockregen.task.AutoScanCycleTask;
 import me.allync.blockregen.task.RandomOreSpawnTask;
 import me.allync.blockregen.util.BreakDurationHologramUtil;
 import me.allync.blockregen.util.ItemUtil;
@@ -36,6 +37,8 @@ public final class BlockRegen extends JavaPlugin {
     private RandomOreManager randomOreManager;
     private RandomOreSpawnTask randomOreSpawnTask;
     private BlockMiningListener blockMiningListener;
+    private AutoScanManager autoScanManager;
+    private AutoScanCycleTask autoScanCycleTask;
     // Hapus field MiningMonitorTask
     // private MiningMonitorTask miningMonitor;
 
@@ -115,6 +118,9 @@ public final class BlockRegen extends JavaPlugin {
         regionManager.loadRegions();
         randomOreManager.load();
 
+        autoScanManager = new AutoScanManager(this);
+        autoScanManager.load();
+
         if (configManager.worldGuardEnabled) {
             Plugin plugin = getServer().getPluginManager().getPlugin("WorldGuard");
             if (plugin instanceof WorldGuardPlugin) {
@@ -150,6 +156,7 @@ public final class BlockRegen extends JavaPlugin {
         getCommand("regenmultiplier").setExecutor(new RegenMultiplierCommand(this));
 
         startRandomOreTask();
+        startAutoScanTask();
 
         getLogger().info("BlockRegen has been enabled successfully!");
     }
@@ -159,6 +166,13 @@ public final class BlockRegen extends JavaPlugin {
         if (randomOreSpawnTask != null) {
             randomOreSpawnTask.cancel();
             randomOreSpawnTask = null;
+        }
+        if (autoScanCycleTask != null) {
+            autoScanCycleTask.cancel();
+            autoScanCycleTask = null;
+        }
+        if (autoScanManager != null) {
+            autoScanManager.save();
         }
         if (blockMiningListener != null) {
             blockMiningListener.shutdown();
@@ -178,7 +192,9 @@ public final class BlockRegen extends JavaPlugin {
         blockManager.loadBlocks();
         regionManager.loadRegions();
         randomOreManager.load();
+        autoScanManager.load();
         startRandomOreTask();
+        startAutoScanTask();
 
         nexoEnabled = getServer().getPluginManager().isPluginEnabled("Nexo");
         if (nexoEnabled) {
@@ -241,6 +257,19 @@ public final class BlockRegen extends JavaPlugin {
         }
     }
 
+    private void startAutoScanTask() {
+        if (autoScanCycleTask != null) {
+            autoScanCycleTask.cancel();
+            autoScanCycleTask = null;
+        }
+        if (!autoScanManager.isEnabled()) {
+            return;
+        }
+        long intervalTicks = Math.max(20L, autoScanManager.getCycleIntervalSeconds() * 20L);
+        autoScanCycleTask = new AutoScanCycleTask(this);
+        autoScanCycleTask.runTaskTimer(this, intervalTicks, intervalTicks);
+    }
+
     private void startRandomOreTask() {
         if (randomOreSpawnTask != null) {
             randomOreSpawnTask.cancel();
@@ -291,8 +320,7 @@ public final class BlockRegen extends JavaPlugin {
     public MultiplierManager getMultiplierManager() { return multiplierManager; }
     public MiningManager getMiningManager() { return miningManager; }
     public RandomOreManager getRandomOreManager() { return randomOreManager; }
-    // Hapus getter MiningMonitorTask
-    // public MiningMonitorTask getMiningMonitor() { return miningMonitor; }
+    public AutoScanManager getAutoScanManager() { return autoScanManager; }
     public WorldGuardPlugin getWorldGuardPlugin() { return worldGuardPlugin; }
     public Economy getEconomy() { return economy; }
 }

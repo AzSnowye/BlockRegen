@@ -1,7 +1,9 @@
 package me.allync.blockregen.manager;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.task.RegenTask;
 import me.allync.blockregen.util.DurationFormatUtil;
@@ -54,6 +56,43 @@ public class RegenManager {
         (new HashMap<>(this.regeneratingBlocks)).forEach((location, state) -> state.update(true, false));
         this.regeneratingBlocks.clear();
         this.plugin.getLogger().info("All pending blocks have been regenerated.");
+    }
+
+    /**
+     * Returns how many blocks are currently waiting to regenerate.
+     */
+    public int getPendingCount() {
+        return regeneratingBlocks.size();
+    }
+
+    /**
+     * Returns an unmodifiable view of all locations currently pending regen.
+     */
+    public Set<Location> getPendingLocations() {
+        return Collections.unmodifiableSet(regeneratingBlocks.keySet());
+    }
+
+    /**
+     * Force-regenerates ALL pending blocks immediately (cancels delay).
+     * @return number of blocks that were force-regenerated.
+     */
+    public int forceRegenAll() {
+        if (regeneratingBlocks.isEmpty()) return 0;
+        Map<Location, BlockState> copy = new HashMap<>(regeneratingBlocks);
+        regeneratingBlocks.clear();
+        copy.forEach((location, state) -> state.update(true, false));
+        return copy.size();
+    }
+
+    /**
+     * Force-regenerates a single block at the given location.
+     * @return true if a pending block was found and regenerated.
+     */
+    public boolean forceRegenLocation(Location location) {
+        BlockState state = regeneratingBlocks.remove(location);
+        if (state == null) return false;
+        state.update(true, false);
+        return true;
     }
 
     /**

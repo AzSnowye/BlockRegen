@@ -72,10 +72,11 @@ public class MiningManager {
             return;
         }
 
-        String currentIdentifier = getBlockIdentifier(block);
-        if (currentIdentifier == null || !currentIdentifier.equalsIgnoreCase(blockIdentifier)) {
-            return;
-        }
+        // NOTE: Do NOT re-check the block's current identifier here.
+        // By the time processBlockBreak() is called, vanilla Minecraft has already
+        // set the block to AIR as part of BlockBreakEvent completion.
+        // Calling getBlockIdentifier(block) now would always return "AIR" and abort the regen.
+        // The identifier was already validated by the caller (BlockBreakListener / BlockMiningListener).
 
         // 1. Handle Drops (Custom & Natural)
         handleAllDrops(player, block, data, blockIdentifier);

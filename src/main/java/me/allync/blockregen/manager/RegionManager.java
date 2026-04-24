@@ -95,8 +95,10 @@ public class RegionManager {
     }
 
     public boolean isLocationInRegion(Location location) {
+        // If no regions have been defined, treat regions as unrestricted.
+        // Regen is allowed everywhere in the configured worlds.
         if (regions.isEmpty()) {
-            return false; // If no regions are defined, deny regen everywhere
+            return true;
         }
         for (Region region : regions) {
             if (region.contains(location)) {
@@ -157,7 +159,11 @@ public class RegionManager {
     }
 
     public boolean isLocationInAnySupportedRegion(Location location) {
-        return !getRegionNamesAt(location).isEmpty();
+        // If no BlockRegen regions are defined, behave as unrestricted (WorldGuard flags still apply separately).
+        if (regions.isEmpty() && (plugin.getWorldGuardPlugin() == null || !plugin.getConfigManager().worldGuardEnabled)) {
+            return true;
+        }
+        return isLocationInRegion(location);
     }
 
     public void setPos1(Player player, Location location) {

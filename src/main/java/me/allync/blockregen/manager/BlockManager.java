@@ -41,8 +41,10 @@ public class BlockManager {
             if (section != null) {
                 try {
                     BlockData data = new BlockData(section);
-                    // Use the key directly, which is case-insensitive for materials but sensitive for custom IDs.
-                    blockDataMap.put(key.toUpperCase(), data);
+                    // Store with a normalized key: lowercase for namespaced IDs, uppercase for vanilla materials.
+                    // This ensures lookups always match regardless of how the identifier was returned.
+                    String normalizedKey = key.contains(":") ? key.toLowerCase() : key.toUpperCase();
+                    blockDataMap.put(normalizedKey, data);
                 } catch (Exception e) {
                     plugin.getLogger().log(Level.SEVERE, "Failed to load block data for " + key, e);
                 }
@@ -57,7 +59,10 @@ public class BlockManager {
      * @return The BlockData, or null if not found.
      */
     public BlockData getBlockData(String identifier) {
-        return blockDataMap.get(identifier.toUpperCase());
+        if (identifier == null) return null;
+        // Normalize lookup key: lowercase for namespaced (contains ':'), uppercase for vanilla.
+        String normalizedKey = identifier.contains(":") ? identifier.toLowerCase() : identifier.toUpperCase();
+        return blockDataMap.get(normalizedKey);
     }
 
     public BlockData getBlockData(String identifier, String regionName) {
@@ -82,7 +87,9 @@ public class BlockManager {
      * @return True if it is a regen block, false otherwise.
      */
     public boolean isRegenBlock(String identifier) {
-        return blockDataMap.containsKey(identifier.toUpperCase());
+        if (identifier == null) return false;
+        String normalizedKey = identifier.contains(":") ? identifier.toLowerCase() : identifier.toUpperCase();
+        return blockDataMap.containsKey(normalizedKey);
     }
 
     public boolean isRegenBlockInRegion(String identifier, String regionName) {

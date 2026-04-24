@@ -57,6 +57,14 @@ public class BlockBreakListener implements Listener {
             return;
         }
 
+        // --- AUTO-SCAN: block breaking inactive (placeholder) points ---
+        if (plugin.getAutoScanManager().isInactivePoint(block.getLocation())) {
+            debug(player, blockIdentifier, "Block is an inactive auto-scan point (placeholder). &cCancelling break.");
+            event.setCancelled(true);
+            return;
+        }
+        // --- END AUTO-SCAN ---
+
         if (!plugin.getConfigManager().allWorldsEnabled && !plugin.getConfigManager().enabledWorlds.contains(player.getWorld().getName())) {
             debug(player, blockIdentifier, "World '" + player.getWorld().getName() + "' is not an enabled world. &cIgnoring event.");
             return;
@@ -154,7 +162,9 @@ public class BlockBreakListener implements Listener {
                 ? plugin.getRegionManager().isLocationInAnySupportedRegion(block.getLocation())
                 : plugin.getRegionManager().isLocationInRegion(block.getLocation());
         if (!inSupportedRegion) {
-            debug(player, blockIdentifier, "Location is not inside a supported region (BlockRegen/WorldGuard). &cIgnoring.");
+            debug(player, blockIdentifier, "Location is not inside a supported region (BlockRegen/WorldGuard). &cCancelling to prevent block loss.");
+            // Cancel the event so the regen block is not permanently destroyed by vanilla.
+            event.setCancelled(true);
             if (player.hasPermission("blockregen.admin")) {
                 player.sendMessage(plugin.getConfigManager().notInRegionMessage);
             }

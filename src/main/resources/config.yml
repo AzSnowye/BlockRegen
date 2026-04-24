@@ -233,3 +233,27 @@ messages:
     - "&6/regen block refresh [region|all] &7- Refresh random ore langsung saat itu juga."
     - "&6/regen block spawn <region> <id_block> <jumlah> &7- Spawn paksa block random di region."
     - "&6/regen block debug <region> &7- Lihat point yang kepilih di cycle random terakhir."
+    - "&6/blockregen scan wand &7- Dapatkan wand untuk set auto-scan point."
+    - "&6/blockregen scan list &7- Lihat semua titik auto-scan."
+    - "&6/blockregen scan cycle &7- Paksa trigger siklus auto-scan."
+    - "&6/blockregen scan info &7- Lihat info sistem auto-scan."
+
+# --------------------------------------------------------- #
+#                     AUTO-SCAN SYSTEM                      #
+# --------------------------------------------------------- #
+# Fitur untuk merotasi block secara otomatis ("anti-AFK").
+# Memungkinkan admin menaruh titik-titik block yang otomatis
+# berganti antara ore (aktif) dan batu biasa (tidak aktif) 
+# secara random setiap siklusnya.
+auto-scan:
+  # Apakah sistem ini aktif?
+  enabled: true
+  
+  # Berapa interval rotasi (dalam detik)
+  cycle-interval-seconds: 30
+  
+  # Kesempatan default block menjadi aktif (0-100)
+  default-active-chance: 50.0
+  
+  # Block penutup default jika 'replaced-block' tidak valid
+  default-placeholder: "STONE"
