@@ -17,7 +17,21 @@
 # ==================================================================================================== #
 
 
-# ---------------------------------------------------------------------------------------------------- #
+# ─────────────────────────────────────────────────────────────────────────── #
+# MODE BARU: BLOCK HEALTH (HP-based Mining)                                    #
+# Setiap klik kanan mengurangi HP = pickaxe power pemain.                     #
+# Contoh: health 100, power 5 → butuh 20 klik. Power 25 → butuh 4 klik.      #
+# Aktifkan dengan menambahkan 'block-health: <nilai>' pada blok di bawah.     #
+# ─────────────────────────────────────────────────────────────────────────── #
+# IRON_ORE:
+#   replaced-block: STONE
+#   regen-delay: 15
+#   natural-drop: true
+#   block-health: 50                  # HP maksimal blok ini
+#   require-pickaxe-power: 5          # Minimum power yang bisa damage blok ini
+#   break-sound: "BLOCK_STONE_HIT:0.6:1.0"
+
+# ─────────────────────────────────────────────────────────────────────────── #
 # 1. BASIC VANILLA ORE (COAL_ORE)                                                                      #
 #    - Simple regeneration with natural drop enabled.                                                  #
 #    - NEW FEATURE DEMO: Custom Breaking Speed                                                         #

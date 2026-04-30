@@ -41,6 +41,7 @@ public final class BlockRegen extends JavaPlugin {
     private AutoScanManager autoScanManager;
     private AutoScanCycleTask autoScanCycleTask;
     private ModelEngineHitListener modelEngineHitListener;
+    private BlockHealthManager blockHealthManager;
     // Hapus field MiningMonitorTask
     // private MiningMonitorTask miningMonitor;
 
@@ -119,6 +120,7 @@ public final class BlockRegen extends JavaPlugin {
         playerManager = new PlayerManager(this);
         miningManager = new MiningManager(this); // Inisialisasi MiningManager
         randomOreManager = new RandomOreManager(this);
+        blockHealthManager = new BlockHealthManager(this);
         // Hapus inisialisasi MiningMonitorTask
         // miningMonitor = new MiningMonitorTask(this);
 
@@ -189,10 +191,14 @@ public final class BlockRegen extends JavaPlugin {
         if (blockMiningListener != null) {
             blockMiningListener.shutdown();
         }
+        if (blockHealthManager != null) {
+            blockHealthManager.clear();
+        }
         if (modelEngineHitListener != null) {
             modelEngineHitListener.shutdown();
         }
         BreakDurationHologramUtil.removeAll();
+        me.allync.blockregen.util.BlockHealthHologramUtil.removeAll();
         if (modelEngineEnabled) {
             ModelEngineUtil.removeAll();
         }
@@ -343,4 +349,5 @@ public final class BlockRegen extends JavaPlugin {
     public Economy getEconomy() { return economy; }
     public BlockMiningListener getBlockMiningListener() { return blockMiningListener; }
     public ModelEngineHitListener getModelEngineHitListener() { return modelEngineHitListener; }
+    public BlockHealthManager getBlockHealthManager() { return blockHealthManager; }
 }

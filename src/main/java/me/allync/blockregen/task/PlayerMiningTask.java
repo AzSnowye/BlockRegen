@@ -176,9 +176,9 @@ public class PlayerMiningTask extends BukkitRunnable {
             double dist = player.getLocation().distance(block.getLocation().clone().add(0.5, 0.5, 0.5));
             isOnTarget = dist <= 5.0;
         } else {
-            // Untuk right-click: pemain dianggap on-target jika dalam jarak 5 blok
-            double dist = player.getLocation().distance(block.getLocation().clone().add(0.5, 0.5, 0.5));
-            isOnTarget = dist <= 5.0;
+            // Untuk mode otomatis, pemain harus terus melihat blok
+            Block target = player.getTargetBlockExact(6);
+            isOnTarget = target != null && target.getLocation().equals(block.getLocation());
         }
 
         if (!isOnTarget) {
@@ -206,12 +206,7 @@ public class PlayerMiningTask extends BukkitRunnable {
             return;
         }
 
-        // Timeout klik: pemain harus terus klik kanan, tidak boleh diam saja
-        if (now - lastManualHitMs > plugin.getConfigManager().miningHoldMineTimeoutMs) {
-            miningManager.debug(player, blockIdentifier, "&cCancelling mining (No right-click for too long).");
-            cancelTask();
-            return;
-        }
+
 
         if (!isHoldingPickaxe()) {
             miningManager.debug(player, blockIdentifier, "&cCancelling mining (No valid tool in main hand).");

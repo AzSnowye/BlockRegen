@@ -1,0 +1,38 @@
+# ============================================================ #
+#         BlockRegen - Konfigurasi Blok Vanilla               #
+# ============================================================ #
+# File ini berisi konfigurasi untuk blok-blok vanilla         #
+# Minecraft (STONE, COAL_ORE, IRON_ORE, dll).                 #
+# ============================================================ #
+
+COAL_ORE:
+  replaced-block: STONE
+  regen-delay: 10
+  natural-drop: true
+  break-sound: "BLOCK_STONE_BREAK:1.0:1.0"
+  regen-sound: "ENTITY_EXPERIENCE_ORB_PICKUP:1.0:1.5"
+  break-duration: 3.0
+
+IRON_ORE:
+  replaced-block: STONE
+  regen-delay: 15
+  natural-drop: true
+  break-sound: "BLOCK_STONE_BREAK:1.0:0.9"
+  regen-sound: "ENTITY_EXPERIENCE_ORB_PICKUP:1.0:1.5"
+  break-duration: 5.0
+
+GOLD_ORE:
+  replaced-block: STONE
+  regen-delay: 20
+  natural-drop: true
+  break-sound: "BLOCK_STONE_BREAK:1.0:1.1"
+  regen-sound: "ENTITY_EXPERIENCE_ORB_PICKUP:1.0:1.5"
+  break-duration: 7.0
+
+DIAMOND_ORE:
+  replaced-block: STONE
+  regen-delay: 60
+  natural-drop: true
+  break-sound: "BLOCK_STONE_BREAK:1.0:1.2"
+  regen-sound: "ENTITY_EXPERIENCE_ORB_PICKUP:1.0:1.5"
+  break-duration: 10.0

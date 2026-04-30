@@ -1,0 +1,40 @@
+# ============================================================ #
+#       BlockRegen - Konfigurasi Blok Custom (Nexo/IA)        #
+# ============================================================ #
+# File ini berisi contoh konfigurasi untuk blok custom        #
+# dari Nexo atau ItemsAdder dengan mode health & break-dur.   #
+# Ganti ID blok sesuai plugin kamu.                           #
+# ============================================================ #
+
+# ─── CONTOH: Blok Nexo dengan mode BREAK-DURATION ──────────
+
+# nexo:agate_ore:
+#   replaced-block: STONE
+#   regen-delay: 30
+#   natural-drop: false
+#   break-duration: 8.0
+#   require-pickaxe-power: 30
+#   break-sound: "BLOCK_STONE_BREAK:1.0:0.8"
+#   regen-sound: "ENTITY_EXPERIENCE_ORB_PICKUP:1.0:1.5"
+#   tools-required:
+#     - type: mmoitems:PICKAXE
+#   custom-drops:
+#     agate:
+#       item: nexo:agate_gem
+#       amount: "1-2"
+#       chance: 100.0
+
+# ─── CONTOH: Blok ItemsAdder dengan mode BLOCK-HEALTH ───────
+
+# itemsadder:ruby_ore:
+#   replaced-block: STONE
+#   regen-delay: 20
+#   natural-drop: false
+#   block-health: 100
+#   require-pickaxe-power: 20
+#   break-sound: "BLOCK_STONE_HIT:0.6:1.0"
+#   custom-drops:
+#     ruby:
+#       item: itemsadder:ruby
+#       amount: "1-3"
+#       chance: 100.0

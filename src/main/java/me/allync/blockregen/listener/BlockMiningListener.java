@@ -13,6 +13,7 @@ import me.allync.blockregen.data.MiningProgressState;
 import me.allync.blockregen.data.MiningTargetKey;
 import me.allync.blockregen.data.ToolRequirement;
 import me.allync.blockregen.manager.MiningManager;
+import me.allync.blockregen.task.PlayerHealthMiningTask;
 import me.allync.blockregen.task.PlayerMiningTask;
 import me.allync.blockregen.util.ItemUtil;
 import me.allync.blockregen.util.SoundUtil;
@@ -57,6 +58,7 @@ public class BlockMiningListener implements Listener {
     private final MiningManager miningManager;
 
     private final Map<UUID, PlayerMiningTask> activeMiningTasks = new HashMap<>();
+    private final Map<UUID, PlayerHealthMiningTask> activeHealthTasks = new HashMap<>();
     private final Map<MiningTargetKey, UUID> activeBlockMiners = new HashMap<>();
     private final Map<UUID, Long> mineConflictMessageCooldown = new HashMap<>();
     private final Map<MiningTargetKey, MiningProgressState> persistedProgress = new HashMap<>();
@@ -97,9 +99,18 @@ public class BlockMiningListener implements Listener {
         String blockIdentifier = miningManager.getBlockIdentifier(block);
         Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
 
-        // --- 2. Get BlockData & Check if this listener should handle it ---
+        // --- 2. Get BlockData & dispatch by mode ---
         BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier, regionNames);
-        if (data == null || !data.hasCustomBreakDuration()) {
+        if (data == null) return; // Bukan regen block
+
+        // Mode health-based: setiap klik kanan mengurangi HP
+        if (data.hasBlockHealth()) {
+            event.setCancelled(true);
+            handleHealthBlock(player, block, data, blockIdentifier, regionNames);
+            return;
+        }
+
+        if (!data.hasCustomBreakDuration()) {
             // BlockBreakListener yang menangani (vanilla break / instant break)
             return;
         }
@@ -268,6 +279,39 @@ public class BlockMiningListener implements Listener {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // HEALTH BLOCK LOGIC
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Proses hit pada blok mode health.
+     * Setiap klik kanan mengurangi HP blok sebesar pickaxe power pemain.
+     */
+    private void handleHealthBlock(Player player, Block block, BlockData data,
+                                   String blockIdentifier, Set<String> regionNames) {
+        UUID uuid = player.getUniqueId();
+
+        // Anti auto-clicker: jika pemain sudah punya task health yang berjalan untuk blok ini, abaikan klik ini.
+        PlayerHealthMiningTask existingTask = activeHealthTasks.get(uuid);
+        if (existingTask != null) {
+            if (existingTask.getBlock().getLocation().equals(block.getLocation())) {
+                return; // Sedang menambang blok ini, abaikan klik tambahan
+            } else {
+                existingTask.cancelTask(); // Ganti blok, batalkan task lama
+            }
+        }
+
+        // Mulai task baru yang akan berjalan otomatis per detik
+        PlayerHealthMiningTask newTask = new PlayerHealthMiningTask(
+                plugin, player, block, data, blockIdentifier, activeHealthTasks
+        );
+        newTask.runTaskTimer(plugin, 0L, 1L); // Cek target tiap tick, damage tiap 20 tick (1s)
+        activeHealthTasks.put(uuid, newTask);
+
+        miningManager.debug(player, blockIdentifier, "&a[Health] Auto-mining started. Keep looking at the block!");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // STACKABLE BLOCK LOGIC
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -335,12 +379,7 @@ public class BlockMiningListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
-        PlayerMiningTask existingTask = activeMiningTasks.get(uuid);
-        if (existingTask != null) {
-            existingTask.cancelTask();
-        }
-        mineConflictMessageCooldown.remove(uuid);
-        playerTouchedBlocks.remove(uuid);
+        cancelTaskFor(uuid);
     }
 
     @EventHandler
@@ -368,6 +407,16 @@ public class BlockMiningListener implements Listener {
         cancelTaskFor(event.getPlayer().getUniqueId());
     }
 
+    @EventHandler
+    public void onPlayerItemHeld(org.bukkit.event.player.PlayerItemHeldEvent event) {
+        cancelTaskFor(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
+    public void onPlayerDropItem(org.bukkit.event.player.PlayerDropItemEvent event) {
+        cancelTaskFor(event.getPlayer().getUniqueId());
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // HELPERS
     // ─────────────────────────────────────────────────────────────────────────
@@ -384,7 +433,11 @@ public class BlockMiningListener implements Listener {
         for (PlayerMiningTask task : activeMiningTasks.values()) {
             if (task != null) task.cancelTask();
         }
+        for (PlayerHealthMiningTask task : activeHealthTasks.values()) {
+            if (task != null) task.cancelTask();
+        }
         activeMiningTasks.clear();
+        activeHealthTasks.clear();
         activeBlockMiners.clear();
         mineConflictMessageCooldown.clear();
         playerTouchedBlocks.clear();
@@ -395,6 +448,10 @@ public class BlockMiningListener implements Listener {
         PlayerMiningTask existingTask = activeMiningTasks.get(uuid);
         if (existingTask != null) {
             existingTask.cancelTask();
+        }
+        PlayerHealthMiningTask existingHealthTask = activeHealthTasks.get(uuid);
+        if (existingHealthTask != null) {
+            existingHealthTask.cancelTask();
         }
         mineConflictMessageCooldown.remove(uuid);
         playerTouchedBlocks.remove(uuid);
@@ -446,6 +503,11 @@ public class BlockMiningListener implements Listener {
                 return true;
             }
         }
+        for (PlayerHealthMiningTask task : activeHealthTasks.values()) {
+            if (task.getBlock().getLocation().equals(loc)) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -459,6 +521,12 @@ public class BlockMiningListener implements Listener {
         if (miner != null) {
             PlayerMiningTask task = activeMiningTasks.get(miner);
             if (task != null) task.cancelTask();
+        }
+        for (PlayerHealthMiningTask task : activeHealthTasks.values()) {
+            if (task.getBlock().getLocation().equals(loc)) {
+                task.cancelTask();
+                break;
+            }
         }
         persistedProgress.remove(key);
         activeBlockMiners.remove(key);

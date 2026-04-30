@@ -52,7 +52,7 @@ worlds:
   # A list of worlds where block regeneration is enabled.
   # This list is ignored if 'enable-all-worlds' is set to 'true'.
   enabled-worlds:
-    - "void"
+    - "spawn"
     - "world_prison"
 
   # (NEW SECTION)
@@ -98,6 +98,15 @@ options:
     enabled: true
     # Jumlah maksimal blok dalam satu cluster yang bisa dihancurkan sekaligus.
     max-stack-size: 16
+
+  # Block Health: mode penambangan berbasis HP.
+  # Blok punya HP, setiap klik kanan mengurangi HP sebesar pickaxe power pemain.
+  # Konfigurasikan per-blok di blocks.yml dengan 'block-health: <nilai>'.
+  block-health:
+    # Berapa lama (ms) sebelum HP blok di-reset jika tidak ada yang menyerang (default 5 detik).
+    reset-timeout-ms: 5000
+    # Damage default per klik jika pemain tidak punya pickaxe power (vanilla pickaxe).
+    default-damage: 1.0
 
 
 # ================================================================================= #

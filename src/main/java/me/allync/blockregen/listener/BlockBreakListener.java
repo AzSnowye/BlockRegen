@@ -100,6 +100,15 @@ public class BlockBreakListener implements Listener {
                 return;
             }
         }
+
+        // Health blocks: vanilla break dilarang, gunakan sistem right-click di BlockMiningListener
+        if (data != null && data.hasBlockHealth()) {
+            if (!block.hasMetadata("blockregen-task-break")) {
+                debug(player, blockIdentifier, "Block has block-health mode. &cIgnoring vanilla BlockBreakEvent.");
+                event.setCancelled(true);
+                return;
+            }
+        }
         // --- AKHIR PENGECEKAN BARU ---
 
         if (plugin.getConfigManager().worldGuardEnabled && plugin.getWorldGuardPlugin() != null) {
