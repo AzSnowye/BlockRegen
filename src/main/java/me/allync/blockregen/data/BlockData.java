@@ -45,6 +45,10 @@ public class BlockData {
     private final double requirePickaxePower;
     // --- AKHIR MMOITEMS POWER ---
 
+    // --- BLOCK HEALTH ---
+    private final double blockHealth; // 0 = disabled, >0 = health-based mode
+    // --- AKHIR BLOCK HEALTH ---
+
     // --- MODEL ENGINE ---
     private final String modelEngineId;
     private final float modelYaw;
@@ -211,6 +215,10 @@ public class BlockData {
         // --- MMOITEMS POWER ---
         this.requirePickaxePower = section.getDouble("require-pickaxe-power", 0.0);
         // --- AKHIR MMOITEMS POWER ---
+
+        // --- BLOCK HEALTH ---
+        this.blockHealth = section.getDouble("block-health", 0.0);
+        // --- AKHIR BLOCK HEALTH ---
 
         // --- MODEL ENGINE ---
         ConfigurationSection modelEngineSection = section.getConfigurationSection("model-engine");
@@ -458,6 +466,18 @@ public class BlockData {
         return requirePickaxePower > 0;
     }
     // --- AKHIR GETTER MMOITEMS POWER ---
+
+    // --- GETTER BLOCK HEALTH ---
+    /** Nilai HP maksimal blok. 0 = mode health tidak aktif. */
+    public double getBlockHealth() {
+        return blockHealth;
+    }
+
+    /** True jika blok menggunakan mode health-based (bukan time-based). */
+    public boolean hasBlockHealth() {
+        return blockHealth > 0;
+    }
+    // --- AKHIR GETTER BLOCK HEALTH ---
 
     // --- GETTER MODEL ENGINE ---
     /**

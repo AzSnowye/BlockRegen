@@ -16,16 +16,23 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * A per-player task that manages the custom breaking timer, animations,
- * and completion of a custom-duration block.
+ * Per-player task untuk sistem penambangan kustom dengan durasi.
+ *
+ * Mendukung stackable blocks: jika ada blok berdampingan dengan tipe sama,
+ * semua akan dibreak sekaligus saat penambangan selesai.
+ *
+ * Dipicu oleh RIGHT_CLICK_BLOCK (PlayerInteractEvent).
  */
 public class PlayerMiningTask extends BukkitRunnable {
 
-    private static final int SWING_INTERVAL_TICKS = 20;
+    private static final int SWING_INTERVAL_TICKS = 10; // lebih sering untuk feel right-click
 
     private final BlockRegen plugin;
     private final MiningManager miningManager;
@@ -34,15 +41,16 @@ public class PlayerMiningTask extends BukkitRunnable {
     private final BlockData data;
     private final String blockIdentifier;
     private final BlockState originalState;
-    private final long startTime;
     private final long requiredTimeMs;
     private final Map<UUID, PlayerMiningTask> miningTasks;
     private final Map<MiningTargetKey, UUID> blockMiners;
     private final Map<MiningTargetKey, MiningProgressState> persistedProgress;
     private final MiningTargetKey blockKey;
     private final ItemStack initialToolSnapshot;
-    /** True jika task ini dijalankan untuk blok hide-block (block = AIR, player menyerang entity). */
     private final boolean isHideBlockMode;
+    /** Daftar blok stackable (termasuk blok utama di index 0). */
+    private final List<Block> stackedBlocks;
+
     private long lastManualHitMs;
     private long accumulatedElapsedMs;
     private long lastProgressTickMs;
@@ -51,6 +59,8 @@ public class PlayerMiningTask extends BukkitRunnable {
     private int currentStage = -1;
     private int swingTickCounter = 0;
     private boolean stateCleared = false;
+
+    // ─── Constructor Lama (tanpa stacked, tanpa injectedState) ───────────────
 
     public PlayerMiningTask(
             BlockRegen plugin,
@@ -65,13 +75,11 @@ public class PlayerMiningTask extends BukkitRunnable {
             long resumedElapsedMs
     ) {
         this(plugin, player, block, data, blockIdentifier, miningTasks, blockMiners,
-                persistedProgress, blockKey, resumedElapsedMs, null);
+                persistedProgress, blockKey, resumedElapsedMs, null, null);
     }
 
-    /**
-     * Overload yang menerima injectedOriginalState.
-     * Digunakan saat mode hide-block: blok sudah AIR, tapi kita punya state aslinya.
-     */
+    // ─── Constructor dengan injectedOriginalState (hide-block, tanpa stacked) ─
+
     public PlayerMiningTask(
             BlockRegen plugin,
             Player player,
@@ -84,6 +92,26 @@ public class PlayerMiningTask extends BukkitRunnable {
             MiningTargetKey blockKey,
             long resumedElapsedMs,
             BlockState injectedOriginalState
+    ) {
+        this(plugin, player, block, data, blockIdentifier, miningTasks, blockMiners,
+                persistedProgress, blockKey, resumedElapsedMs, injectedOriginalState, null);
+    }
+
+    // ─── Constructor UTAMA ────────────────────────────────────────────────────
+
+    public PlayerMiningTask(
+            BlockRegen plugin,
+            Player player,
+            Block block,
+            BlockData data,
+            String blockIdentifier,
+            Map<UUID, PlayerMiningTask> miningTasks,
+            Map<MiningTargetKey, UUID> blockMiners,
+            Map<MiningTargetKey, MiningProgressState> persistedProgress,
+            MiningTargetKey blockKey,
+            long resumedElapsedMs,
+            BlockState injectedOriginalState,
+            List<Block> stackedBlocks
     ) {
         this.plugin = plugin;
         this.miningManager = plugin.getMiningManager();
@@ -102,29 +130,36 @@ public class PlayerMiningTask extends BukkitRunnable {
         this.accumulatedElapsedMs = Math.max(0L, resumedElapsedMs);
         this.lastProgressTickMs = System.currentTimeMillis();
         this.lastOnTargetMs = this.lastProgressTickMs;
-
-        this.startTime = System.currentTimeMillis();
         this.requiredTimeMs = Math.max(50L, miningManager.calculateRequiredBreakTimeMs(player, data));
+
+        // Salin daftar blok stackable; jika null, buat list kosong (hanya blok utama)
+        if (stackedBlocks != null && !stackedBlocks.isEmpty()) {
+            this.stackedBlocks = new ArrayList<>(stackedBlocks);
+        } else {
+            this.stackedBlocks = new ArrayList<>();
+            this.stackedBlocks.add(block);
+        }
+
         miningManager.markMining(this.block.getLocation());
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+
     @Override
     public void run() {
-        // 1. Check if task should be cancelled (Player offline)
+        // 1. Player online?
         if (!player.isOnline()) {
             BreakDurationHologramUtil.remove(player);
             cancelTask();
             return;
         }
 
+        // 2. Blok masih valid?
         String currentIdentifier = miningManager.getBlockIdentifier(block);
-        // Jika blok adalah AIR tapi kita punya originalState yang valid (mode hide-block),
-        // maka blok masih dianggap valid. Cek menggunakan originalState.getType().
         boolean blockStillValid;
         if (currentIdentifier != null && currentIdentifier.equalsIgnoreCase("AIR")) {
-            // Blok AIR — cek apakah ini memang hide-block kita
             blockStillValid = ModelEngineUtil.isHiddenBlock(block.getLocation())
-                    && originalState.getType() != org.bukkit.Material.AIR;
+                    && originalState.getType() != Material.AIR;
         } else {
             blockStillValid = currentIdentifier != null && currentIdentifier.equalsIgnoreCase(blockIdentifier);
         }
@@ -134,30 +169,23 @@ public class PlayerMiningTask extends BukkitRunnable {
             return;
         }
 
-        // 2. Check if player is still "on target"
-        // Untuk mode hide-block, block saat ini AIR — player mengarah ke entity model bukan block.
-        // Cek dengan jarak: player harus dalam jangkauan 5 blok dari lokasi entity model.
+        // 3. Pengecekan tambahan (jarak, gamemode, alat)
         long now = System.currentTimeMillis();
         boolean isOnTarget;
         if (isHideBlockMode) {
-            // Jarak player ke pusat blok (dimana entity model berada)
-            double dist = player.getLocation().distance(
-                    block.getLocation().clone().add(0.5, 0.5, 0.5));
+            double dist = player.getLocation().distance(block.getLocation().clone().add(0.5, 0.5, 0.5));
             isOnTarget = dist <= 5.0;
         } else {
-            Block targetBlock = null;
-            try {
-                targetBlock = player.getTargetBlockExact(5);
-            } catch (IllegalStateException e) {
-                // Ignore
-            }
-            isOnTarget = targetBlock != null && targetBlock.getLocation().equals(block.getLocation());
+            // Untuk right-click: pemain dianggap on-target jika dalam jarak 5 blok
+            double dist = player.getLocation().distance(block.getLocation().clone().add(0.5, 0.5, 0.5));
+            isOnTarget = dist <= 5.0;
         }
+
         if (!isOnTarget) {
             BreakDurationHologramUtil.remove(player);
             lastProgressTickMs = now;
             if (now - lastOnTargetMs >= plugin.getConfigManager().miningReleaseGraceMs) {
-                miningManager.debug(player, blockIdentifier, "&cCancelling mining (Block released for too long).");
+                miningManager.debug(player, blockIdentifier, "&cCancelling mining (Player too far).");
                 cancelTask();
                 return;
             }
@@ -165,7 +193,6 @@ public class PlayerMiningTask extends BukkitRunnable {
         }
         lastOnTargetMs = now;
 
-        // 3. Check if player is still in GameMode SURVIVAL
         if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL) {
             miningManager.debug(player, blockIdentifier, "&cCancelling mining (Gamemode changed).");
             BreakDurationHologramUtil.remove(player);
@@ -173,64 +200,65 @@ public class PlayerMiningTask extends BukkitRunnable {
             return;
         }
 
-        // Cancel mining if player switches tool while mining.
         if (hasToolChanged()) {
             miningManager.debug(player, blockIdentifier, "&cCancelling mining (Tool changed).");
             cancelTask();
             return;
         }
 
-        // Require repeated clicks so players cannot complete mining by holding click once.
+        // Timeout klik: pemain harus terus klik kanan, tidak boleh diam saja
         if (now - lastManualHitMs > plugin.getConfigManager().miningHoldMineTimeoutMs) {
-            miningManager.debug(player, blockIdentifier, "&cCancelling mining (Hold mining is disabled, keep clicking).");
+            miningManager.debug(player, blockIdentifier, "&cCancelling mining (No right-click for too long).");
             cancelTask();
             return;
         }
 
-        // Cancel mining if the player stops holding a valid mining tool.
         if (!isHoldingPickaxe()) {
-            miningManager.debug(player, blockIdentifier, "&cCancelling mining (No pickaxe in main hand).");
+            miningManager.debug(player, blockIdentifier, "&cCancelling mining (No valid tool in main hand).");
             String requiredTools = miningManager.formatRequiredTools(data);
             player.sendMessage(plugin.getConfigManager().wrongToolMessage.replace("%tool%", requiredTools));
             cancelTask();
             return;
         }
 
-        // 4. Player is still mining. Calculate progress.
+        // 4. Hitung progress
         long delta = Math.max(0L, now - lastProgressTickMs);
         accumulatedElapsedMs += delta;
         lastProgressTickMs = now;
 
         float progress = (float) accumulatedElapsedMs / (float) requiredTimeMs;
-        double remainingSeconds = Math.max(0.0D, (requiredTimeMs - accumulatedElapsedMs) / 1000.0D);
-        BreakDurationHologramUtil.update(player, block.getLocation(), remainingSeconds, plugin);
+
+        // Update health bar hologram
+        BreakDurationHologramUtil.update(player, block.getLocation(), progress, plugin);
         playWaitingSwingAnimation();
 
         if (progress >= 1.0f) {
-            miningManager.debug(player, blockIdentifier, "Block break finished.");
+            miningManager.debug(player, blockIdentifier, "Block break finished. Stack size: " + stackedBlocks.size());
 
             sendSafeBlockDamage(1.0f);
 
             if (isHideBlockMode) {
-                // Untuk hide-block: block saat ini AIR, BlockBreakEvent tidak akan bekerja.
-                // Langsung panggil processBlockBreak dengan originalState yang sudah disimpan.
                 ModelEngineUtil.removeModel(block.getLocation());
                 ModelEngineUtil.restoreHiddenBlock(block.getLocation());
                 miningManager.processBlockBreak(player, block, data, originalState, blockIdentifier);
             } else {
-                // Fire BlockBreakEvent manually so other plugins can hook into it
-                block.setMetadata("blockregen-task-break", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
-                org.bukkit.event.block.BlockBreakEvent event = new org.bukkit.event.block.BlockBreakEvent(block, player);
-                plugin.getServer().getPluginManager().callEvent(event);
-                block.removeMetadata("blockregen-task-break", plugin);
-                // BlockBreakListener akan menangkap event ini dan memanggil processBlockBreak secara otomatis
+                // Hancurkan blok utama dulu
+                breakBlock(block);
+                // Hancurkan semua blok stackable lain (skip index 0 = blok utama)
+                for (int i = 1; i < stackedBlocks.size(); i++) {
+                    Block stacked = stackedBlocks.get(i);
+                    // Pastikan blok masih ada dan belum berubah
+                    String stackedId = miningManager.getBlockIdentifier(stacked);
+                    if (stackedId.equalsIgnoreCase(blockIdentifier)
+                            && !plugin.getRegenManager().isRegenerating(stacked.getLocation())) {
+                        breakBlock(stacked);
+                    }
+                }
             }
 
             clearTaskState(true, false);
-
         } else {
             int newStage = (int) (progress * 10.0f);
-
             if (newStage != this.currentStage) {
                 this.currentStage = newStage;
                 sendSafeBlockDamage(progress);
@@ -238,22 +266,32 @@ public class PlayerMiningTask extends BukkitRunnable {
         }
     }
 
-    /**
-     * Membatalkan task dan membersihkan.
-     */
+    /** Hancurkan satu blok melalui BlockBreakEvent (agar listener lain bisa hook). */
+    private void breakBlock(Block target) {
+        // Ambil state sebelum break
+        BlockState state = target.getState();
+        String id = miningManager.getBlockIdentifier(target);
+        Set<String> regions = plugin.getRegionManager().getRegionNamesAt(target.getLocation());
+        BlockData bd = plugin.getBlockManager().getBlockData(id, regions);
+        if (bd == null) bd = data; // fallback ke data blok utama
+
+        // Fire BlockBreakEvent dengan metadata agar BlockBreakListener tahu ini dari task
+        target.setMetadata("blockregen-task-break", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
+        org.bukkit.event.block.BlockBreakEvent event = new org.bukkit.event.block.BlockBreakEvent(target, player);
+        plugin.getServer().getPluginManager().callEvent(event);
+        target.removeMetadata("blockregen-task-break", plugin);
+    }
+
+
     public void cancelTask() {
         clearTaskState(true, true);
     }
 
     private void clearTaskState(boolean resetCrackAnimation, boolean saveProgress) {
-        if (stateCleared) {
-            return;
-        }
+        if (stateCleared) return;
         stateCleared = true;
 
-        if (!this.isCancelled()) {
-            this.cancel();
-        }
+        if (!this.isCancelled()) this.cancel();
         miningTasks.remove(player.getUniqueId());
         blockMiners.computeIfPresent(blockKey, (key, owner) -> owner.equals(player.getUniqueId()) ? null : owner);
 
@@ -267,10 +305,8 @@ public class PlayerMiningTask extends BukkitRunnable {
         SoundUtil.stopSoundToPlayer(player, data.getBreakSound(), plugin.getConfigManager().defaultBreakSound);
         miningManager.unmarkMining(block.getLocation());
 
-        if (player.isOnline()) {
-            if (resetCrackAnimation) {
-                sendSafeBlockDamage(0.0f);
-            }
+        if (player.isOnline() && resetCrackAnimation) {
+            sendSafeBlockDamage(0.0f);
         }
     }
 
@@ -291,31 +327,25 @@ public class PlayerMiningTask extends BukkitRunnable {
             }
             return false;
         }
-
         Material material = player.getInventory().getItemInMainHand().getType();
         return material != Material.AIR && material.name().endsWith("_PICKAXE");
     }
 
     private boolean hasToolChanged() {
         ItemStack currentTool = normalizeItem(player.getInventory().getItemInMainHand());
-        if (initialToolSnapshot == null && currentTool == null) {
-            return false;
-        }
-        if (initialToolSnapshot == null || currentTool == null) {
-            return true;
-        }
+        if (initialToolSnapshot == null && currentTool == null) return false;
+        if (initialToolSnapshot == null || currentTool == null) return true;
         return !initialToolSnapshot.isSimilar(currentTool);
     }
 
     private ItemStack normalizeItem(ItemStack item) {
-        if (item == null || item.getType() == Material.AIR) {
-            return null;
-        }
+        if (item == null || item.getType() == Material.AIR) return null;
         ItemStack normalized = item.clone();
         normalized.setAmount(1);
         return normalized;
     }
 
+    /** Dipanggil tiap klik kanan untuk reset timer "hold-timeout". */
     public void registerHit() {
         this.lastManualHitMs = System.currentTimeMillis();
         this.lastOnTargetMs = this.lastManualHitMs;
@@ -328,10 +358,6 @@ public class PlayerMiningTask extends BukkitRunnable {
         }
     }
 
-    /**
-     * Mendapatkan lokasi blok yang sedang ditambang task ini.
-     * @return Lokasi Blok
-     */
     public Location getBlockLocation() {
         return this.block.getLocation();
     }

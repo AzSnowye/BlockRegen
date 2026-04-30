@@ -73,6 +73,8 @@ public class ConfigManager {
     public double breakDurationHologramOffsetX;
     public double breakDurationHologramOffsetY;
     public double breakDurationHologramOffsetZ;
+    public boolean stackableBlocksEnabled;
+    public int stackableBlocksMaxSize;
 
     public ConfigManager(BlockRegen plugin) {
         this.plugin = plugin;
@@ -173,6 +175,8 @@ public class ConfigManager {
         this.breakDurationHologramOffsetX = this.config.getDouble("break-duration-hologram.offset.x", 0.5);
         this.breakDurationHologramOffsetY = this.config.getDouble("break-duration-hologram.offset.y", 1.3);
         this.breakDurationHologramOffsetZ = this.config.getDouble("break-duration-hologram.offset.z", 0.5);
+        this.stackableBlocksEnabled = this.config.getBoolean("options.stackable-blocks.enabled", true);
+        this.stackableBlocksMaxSize = Math.max(1, this.config.getInt("options.stackable-blocks.max-stack-size", 16));
 
         // Muat pemetaan profil multiplier dunia
         this.worldMultiplierProfiles = new HashMap<>();

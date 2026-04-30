@@ -7,7 +7,7 @@
 # ================================================================================= #
 
 # Current version of the configuration file. Do not change this value.
-config-version: 9
+config-version: 10
 
 
 
@@ -79,14 +79,25 @@ options:
 
   # Custom break-duration mining controls.
   mining:
-    # Maximum delay between clicks before mining is cancelled (anti-hold mine), in milliseconds.
+    # ⚠️  MEKANISME MINING: Pemain harus RIGHT-CLICK (klik kanan) blok untuk memulai & melanjutkan penambangan.
+    # Setiap right-click = satu "hit". Jika berhenti klik melebihi hold-timeout-ms, mining dibatalkan.
+
+    # Maximum delay between right-clicks before mining is cancelled, in milliseconds.
     hold-timeout-ms: 1800
-    # Grace period when player briefly releases crosshair from the block, in milliseconds.
+    # Grace period when player briefly moves away from the block, in milliseconds.
     release-grace-ms: 3000
     # How long paused progress can be resumed by any player, in milliseconds.
     resume-timeout-ms: 3000
     # Base number of different blocks a player can touch in the resume window.
     default-touch-limit: 2
+
+  # Stackable Blocks: jika ada blok berdampingan dengan tipe sama, semua akan hancur sekaligus.
+  # Mirip mekanisme "The Forge" di Roblox — hancurkan cluster batu sekaligus dengan 1x tambang.
+  stackable-blocks:
+    # Aktifkan fitur ini?
+    enabled: true
+    # Jumlah maksimal blok dalam satu cluster yang bisa dihancurkan sekaligus.
+    max-stack-size: 16
 
 
 # ================================================================================= #
