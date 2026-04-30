@@ -52,17 +52,25 @@ public class ToolRequirement {
                 String mmoType = MMOItems.getTypeName(item);
                 String mmoId = MMOItems.getID(item);
 
-                if (mmoType == null || mmoId == null) return false;
+                if (mmoType == null) return false;
 
-                String requiredId = this.customMaterialId; // e.g., "mmoitems:TOOL:XENG_LV_1"
+                String requiredId = this.customMaterialId; // e.g., "mmoitems:TOOL" or "mmoitems:TOOL:XENG_LV_1"
                 String[] parts = requiredId.split(":");
-                if (parts.length != 3) return false; // Format tidak valid
+                
+                if (parts.length == 2) { // Format: "mmoitems:TYPE"
+                    String requiredType = parts[1];
+                    if (!mmoType.equalsIgnoreCase(requiredType)) {
+                        return false;
+                    }
+                } else if (parts.length == 3) { // Format: "mmoitems:TYPE:ID"
+                    String requiredType = parts[1];
+                    String requiredMmoId = parts[2];
 
-                String requiredType = parts[1];
-                String requiredMmoId = parts[2];
-
-                if (!mmoType.equalsIgnoreCase(requiredType) || !mmoId.equalsIgnoreCase(requiredMmoId)) {
-                    return false;
+                    if (!mmoType.equalsIgnoreCase(requiredType) || (mmoId == null || !mmoId.equalsIgnoreCase(requiredMmoId))) {
+                        return false;
+                    }
+                } else {
+                    return false; // Format tidak valid
                 }
             }
             // Tambahkan logika untuk ItemsAdder di sini jika diperlukan

@@ -3,6 +3,7 @@ package me.allync.blockregen.task;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.BlockData;
 import me.allync.blockregen.manager.RegenManager;
+import me.allync.blockregen.util.ModelEngineUtil;
 import me.allync.blockregen.util.NexoUtil;
 import me.allync.blockregen.util.ParticleUtil;
 import me.allync.blockregen.util.SoundUtil;
@@ -43,6 +44,32 @@ public class RegenTask extends BukkitRunnable {
             String particle = (data != null && data.getRegenParticle() != null) ? data.getRegenParticle() : (this.plugin.getConfigManager()).defaultRegenParticle;
             ParticleUtil.spawnParticle(this.originalState.getLocation(), particle);
         }
+
+        // --- MODEL ENGINE: Spawn ulang model setelah regen selesai ---
+        if (BlockRegen.modelEngineEnabled) {
+            // Tentukan data model dari blok yang AKTUAL muncul setelah regen
+            BlockData modelData = null;
+            if (regenVariantIdentifier != null && !regenVariantIdentifier.isEmpty()) {
+                BlockData variantData = this.plugin.getBlockManager().getBlockData(regenVariantIdentifier);
+                if (variantData != null && variantData.hasModelEngine()) {
+                    modelData = variantData;
+                }
+            }
+            // Fallback ke data blok asli jika variant tidak punya model
+            if (modelData == null && data != null && data.hasModelEngine()) {
+                modelData = data;
+            }
+            if (modelData != null) {
+                ModelEngineUtil.spawnModel(
+                        this.originalState.getLocation(),
+                        modelData.getModelEngineId(),
+                        modelData.getModelYaw(),
+                        modelData.getModelHeightOffset(),
+                        modelData.isModelHideBlock()
+                );
+            }
+        }
+        // --- AKHIR MODEL ENGINE ---
     }
 
     private boolean applyRegenVariant() {

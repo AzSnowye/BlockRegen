@@ -6,6 +6,7 @@ import me.allync.blockregen.data.MiningProgressState;
 import me.allync.blockregen.data.MiningTargetKey;
 import me.allync.blockregen.manager.MiningManager;
 import me.allync.blockregen.util.BreakDurationHologramUtil;
+import me.allync.blockregen.util.ModelEngineUtil;
 import me.allync.blockregen.util.SoundUtil;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -40,6 +41,8 @@ public class PlayerMiningTask extends BukkitRunnable {
     private final Map<MiningTargetKey, MiningProgressState> persistedProgress;
     private final MiningTargetKey blockKey;
     private final ItemStack initialToolSnapshot;
+    /** True jika task ini dijalankan untuk blok hide-block (block = AIR, player menyerang entity). */
+    private final boolean isHideBlockMode;
     private long lastManualHitMs;
     private long accumulatedElapsedMs;
     private long lastProgressTickMs;
@@ -61,13 +64,35 @@ public class PlayerMiningTask extends BukkitRunnable {
             MiningTargetKey blockKey,
             long resumedElapsedMs
     ) {
+        this(plugin, player, block, data, blockIdentifier, miningTasks, blockMiners,
+                persistedProgress, blockKey, resumedElapsedMs, null);
+    }
+
+    /**
+     * Overload yang menerima injectedOriginalState.
+     * Digunakan saat mode hide-block: blok sudah AIR, tapi kita punya state aslinya.
+     */
+    public PlayerMiningTask(
+            BlockRegen plugin,
+            Player player,
+            Block block,
+            BlockData data,
+            String blockIdentifier,
+            Map<UUID, PlayerMiningTask> miningTasks,
+            Map<MiningTargetKey, UUID> blockMiners,
+            Map<MiningTargetKey, MiningProgressState> persistedProgress,
+            MiningTargetKey blockKey,
+            long resumedElapsedMs,
+            BlockState injectedOriginalState
+    ) {
         this.plugin = plugin;
         this.miningManager = plugin.getMiningManager();
         this.player = player;
         this.block = block;
         this.data = data;
         this.blockIdentifier = blockIdentifier;
-        this.originalState = block.getState();
+        this.originalState = (injectedOriginalState != null) ? injectedOriginalState : block.getState();
+        this.isHideBlockMode = (injectedOriginalState != null);
         this.miningTasks = miningTasks;
         this.blockMiners = blockMiners;
         this.persistedProgress = persistedProgress;
@@ -93,22 +118,41 @@ public class PlayerMiningTask extends BukkitRunnable {
         }
 
         String currentIdentifier = miningManager.getBlockIdentifier(block);
-        if (currentIdentifier == null || !currentIdentifier.equalsIgnoreCase(blockIdentifier)) {
+        // Jika blok adalah AIR tapi kita punya originalState yang valid (mode hide-block),
+        // maka blok masih dianggap valid. Cek menggunakan originalState.getType().
+        boolean blockStillValid;
+        if (currentIdentifier != null && currentIdentifier.equalsIgnoreCase("AIR")) {
+            // Blok AIR — cek apakah ini memang hide-block kita
+            blockStillValid = ModelEngineUtil.isHiddenBlock(block.getLocation())
+                    && originalState.getType() != org.bukkit.Material.AIR;
+        } else {
+            blockStillValid = currentIdentifier != null && currentIdentifier.equalsIgnoreCase(blockIdentifier);
+        }
+        if (!blockStillValid) {
             miningManager.debug(player, blockIdentifier, "&cCancelling mining (Block already changed).");
             clearTaskState(true, false);
             return;
         }
 
-        // 2. Check if player is still looking at the same block
-        Block targetBlock = null;
-        try {
-            targetBlock = player.getTargetBlockExact(5);
-        } catch (IllegalStateException e) {
-            // Ignore if player is looking at air.
-        }
-
+        // 2. Check if player is still "on target"
+        // Untuk mode hide-block, block saat ini AIR — player mengarah ke entity model bukan block.
+        // Cek dengan jarak: player harus dalam jangkauan 5 blok dari lokasi entity model.
         long now = System.currentTimeMillis();
-        boolean isOnTarget = targetBlock != null && targetBlock.getLocation().equals(block.getLocation());
+        boolean isOnTarget;
+        if (isHideBlockMode) {
+            // Jarak player ke pusat blok (dimana entity model berada)
+            double dist = player.getLocation().distance(
+                    block.getLocation().clone().add(0.5, 0.5, 0.5));
+            isOnTarget = dist <= 5.0;
+        } else {
+            Block targetBlock = null;
+            try {
+                targetBlock = player.getTargetBlockExact(5);
+            } catch (IllegalStateException e) {
+                // Ignore
+            }
+            isOnTarget = targetBlock != null && targetBlock.getLocation().equals(block.getLocation());
+        }
         if (!isOnTarget) {
             BreakDurationHologramUtil.remove(player);
             lastProgressTickMs = now;
@@ -167,14 +211,20 @@ public class PlayerMiningTask extends BukkitRunnable {
 
             sendSafeBlockDamage(1.0f);
 
-            // Fire BlockBreakEvent manually so other plugins (like AdvancedEnchantments Veinminer) can hook into it
-            block.setMetadata("blockregen-task-break", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
-            org.bukkit.event.block.BlockBreakEvent event = new org.bukkit.event.block.BlockBreakEvent(block, player);
-            plugin.getServer().getPluginManager().callEvent(event);
-            block.removeMetadata("blockregen-task-break", plugin);
-
-            // BlockBreakListener akan menangkap event ini dan memanggil processBlockBreak secara otomatis
-            // jika event tidak dibatalkan oleh plugin perlindungan/pembatasan lainnya.
+            if (isHideBlockMode) {
+                // Untuk hide-block: block saat ini AIR, BlockBreakEvent tidak akan bekerja.
+                // Langsung panggil processBlockBreak dengan originalState yang sudah disimpan.
+                ModelEngineUtil.removeModel(block.getLocation());
+                ModelEngineUtil.restoreHiddenBlock(block.getLocation());
+                miningManager.processBlockBreak(player, block, data, originalState, blockIdentifier);
+            } else {
+                // Fire BlockBreakEvent manually so other plugins can hook into it
+                block.setMetadata("blockregen-task-break", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
+                org.bukkit.event.block.BlockBreakEvent event = new org.bukkit.event.block.BlockBreakEvent(block, player);
+                plugin.getServer().getPluginManager().callEvent(event);
+                block.removeMetadata("blockregen-task-break", plugin);
+                // BlockBreakListener akan menangkap event ini dan memanggil processBlockBreak secara otomatis
+            }
 
             clearTaskState(true, false);
 

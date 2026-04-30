@@ -3,8 +3,9 @@ package me.allync.blockregen.command;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.AutoScanPoint;
 import me.allync.blockregen.listener.WandListener;
+import me.allync.blockregen.manager.AutoScanManager;
+import me.allync.blockregen.util.ModelEngineUtil;
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -19,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class BlockRegenCommand implements CommandExecutor, TabCompleter {
@@ -141,12 +141,8 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
             return handleScanCommand(sender, args);
         }
 
-        if (args[0].equalsIgnoreCase("refresh")) {
-            return handleRefreshCommand(sender, args);
-        }
-
-        if (args[0].equalsIgnoreCase("admin")) {
-            return handleAdminCommand(sender, args);
+        if (args[0].equalsIgnoreCase("model")) {
+            return handleModelCommand(sender, args);
         }
 
         sender.sendMessage(plugin.getConfigManager().prefix + "Perintah tidak dikenal. Gunakan /br help.");
@@ -166,8 +162,7 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
             completions.add("bypass");
             completions.add("block");
             completions.add("scan");
-            completions.add("refresh");
-            completions.add("admin");
+            if (BlockRegen.modelEngineEnabled) completions.add("model");
         } else if (args.length == 2) {
             if (args[0].equalsIgnoreCase("save") || args[0].equalsIgnoreCase("remove")) {
                 completions.addAll(plugin.getRegionManager().getRegionNames());
@@ -183,16 +178,13 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
                 completions.add("list");
                 completions.add("cycle");
                 completions.add("info");
-            } else if (args[0].equalsIgnoreCase("refresh")) {
-                completions.add("all");
-                for (World w : org.bukkit.Bukkit.getWorlds()) {
-                    completions.add(w.getName());
-                }
-            } else if (args[0].equalsIgnoreCase("admin")) {
-                completions.add("status");
-                completions.add("list");
-                completions.add("forceall");
+                completions.add("region");
+            } else if (args[0].equalsIgnoreCase("model") && BlockRegen.modelEngineEnabled) {
+                completions.add("clean");
+                completions.add("cleanall");
             }
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("scan") && args[1].equalsIgnoreCase("region")) {
+            completions.addAll(plugin.getRegionManager().getRegionNames());
         } else if (args.length == 3 && args[0].equalsIgnoreCase("block")) {
             if (args[1].equalsIgnoreCase("set") || args[1].equalsIgnoreCase("remove") || args[1].equalsIgnoreCase("list")) {
                 completions.addAll(plugin.getRandomOreManager().getRegionNames());
@@ -357,118 +349,19 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
     }
 
     // -------------------------------------------------------------------------
-    // /br refresh handler
-    // -------------------------------------------------------------------------
-
-    /**
-     * /br refresh [all|<world>]
-     * Force-regenerates all blocks that are currently waiting to regenerate.
-     * Optionally filtered to a specific world.
-     */
-    private boolean handleRefreshCommand(CommandSender sender, String[] args) {
-        String scope = args.length >= 2 ? args[1].toLowerCase(Locale.ROOT) : "all";
-
-        int count;
-        if (scope.equals("all")) {
-            count = plugin.getRegenManager().forceRegenAll();
-            sender.sendMessage(plugin.getConfigManager().prefix
-                    + "§aForce-regen selesai. §e" + count + "§a blok telah diregen ulang.");
-        } else {
-            // filter by world name
-            World world = org.bukkit.Bukkit.getWorld(scope);
-            if (world == null) {
-                sender.sendMessage(plugin.getConfigManager().prefix
-                        + "§cWorld §e" + scope + "§c tidak ditemukan. Gunakan /br refresh all atau nama world yang valid.");
-                return true;
-            }
-            Set<Location> pending = plugin.getRegenManager().getPendingLocations();
-            count = 0;
-            for (Location loc : new java.util.ArrayList<>(pending)) {
-                if (loc.getWorld() != null && loc.getWorld().equals(world)) {
-                    plugin.getRegenManager().forceRegenLocation(loc);
-                    count++;
-                }
-            }
-            sender.sendMessage(plugin.getConfigManager().prefix
-                    + "§aForce-regen selesai di world §e" + world.getName() + "§a. §e" + count + "§a blok diregen ulang.");
-        }
-        return true;
-    }
-
-    // -------------------------------------------------------------------------
-    // /br admin handler
-    // -------------------------------------------------------------------------
-
-    /**
-     * /br admin <status|list|forceall>
-     */
-    private boolean handleAdminCommand(CommandSender sender, String[] args) {
-        String sub = args.length >= 2 ? args[1].toLowerCase(Locale.ROOT) : "status";
-
-        switch (sub) {
-            case "status" -> {
-                int pending   = plugin.getRegenManager().getPendingCount();
-                int blocks    = plugin.getBlockManager().getConfiguredIdentifiers().size();
-                int regions   = plugin.getRegionManager().getRegionNames().size();
-                int scanPts   = plugin.getAutoScanManager().getPointCount();
-                boolean scanOn = plugin.getAutoScanManager().isEnabled();
-
-                sender.sendMessage(plugin.getConfigManager().prefix + "§6§lBlockRegen Admin Status");
-                sender.sendMessage("  §7Plugin versi   : §e" + plugin.getDescription().getVersion());
-                sender.sendMessage("  §7Config block   : §e" + blocks + "§7 terdaftar");
-                sender.sendMessage("  §7Region internal: §e" + regions);
-                sender.sendMessage("  §7Pending regen  : §e" + pending + "§7 blok menunggu");
-                sender.sendMessage("  §7Auto-Scan      : " + (scanOn ? "§aAktif" : "§cNonaktif") + "§7, §e" + scanPts + "§7 titik");
-            }
-
-            case "list" -> {
-                Set<Location> pending = plugin.getRegenManager().getPendingLocations();
-                if (pending.isEmpty()) {
-                    sender.sendMessage(plugin.getConfigManager().prefix + "§7Tidak ada blok yang sedang menunggu regen.");
-                    return true;
-                }
-                sender.sendMessage(plugin.getConfigManager().prefix
-                        + "§6Pending regen blocks (§e" + pending.size() + "§6):");
-                int i = 1;
-                for (Location loc : pending) {
-                    String world = loc.getWorld() != null ? loc.getWorld().getName() : "?";
-                    sender.sendMessage(String.format("  §e%d. §f%s §7(§f%d, %d, %d§7)",
-                            i++, world, loc.getBlockX(), loc.getBlockY(), loc.getBlockZ()));
-                    if (i > 50) {
-                        sender.sendMessage("  §7... dan §e" + (pending.size() - 50) + "§7 lainnya (ditampilkan 50 pertama).");
-                        break;
-                    }
-                }
-            }
-
-            case "forceall" -> {
-                int count = plugin.getRegenManager().forceRegenAll();
-                sender.sendMessage(plugin.getConfigManager().prefix
-                        + "§aForce-regen semua blok selesai. §e" + count + "§a blok diregen ulang.");
-            }
-
-            default -> {
-                sender.sendMessage(plugin.getConfigManager().prefix + "§6/br admin §7<status|list|forceall>");
-                sender.sendMessage("  §e/br admin status  §7- Lihat status sistem BlockRegen");
-                sender.sendMessage("  §e/br admin list    §7- Daftar semua blok yang sedang menunggu regen");
-                sender.sendMessage("  §e/br admin forceall§7- Force regen semua blok yang pending");
-            }
-        }
-        return true;
-    }
-
-    // -------------------------------------------------------------------------
     // /br scan handler
     // -------------------------------------------------------------------------
 
     private boolean handleScanCommand(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player)) {
+        String sub = args.length >= 2 ? args[1].toLowerCase() : "help";
+
+        // 'region' can be run from console; all other sub-commands require a player
+        if (!sub.equals("region") && !(sender instanceof Player)) {
             sender.sendMessage(plugin.getConfigManager().prefix + "Perintah ini hanya bisa dijalankan oleh player.");
             return true;
         }
-        Player player = (Player) sender;
 
-        String sub = args.length >= 2 ? args[1].toLowerCase() : "help";
+        Player player = (sender instanceof Player) ? (Player) sender : null;
 
         switch (sub) {
             case "wand" -> {
@@ -514,12 +407,129 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage("  §7Total Point: §e" + points);
             }
 
+            case "region" -> {
+                if (args.length < 3) {
+                    sender.sendMessage(plugin.getConfigManager().prefix + "Gunakan: /br scan region <nama_region>");
+                    return true;
+                }
+                String regionName = args[2];
+
+                // Try internal BlockRegen region first
+                me.allync.blockregen.data.Region internalRegion =
+                        plugin.getRegionManager().getRegionByName(regionName);
+
+                AutoScanManager.ScanResult result;
+                String regionSource;
+
+                if (internalRegion != null) {
+                    regionSource = "BlockRegen";
+                    // Volume warning
+                    org.bukkit.Location mn = internalRegion.getMinPoint();
+                    org.bukkit.Location mx = internalRegion.getMaxPoint();
+                    long vol = (long)(mx.getBlockX() - mn.getBlockX() + 1)
+                             * (mx.getBlockY() - mn.getBlockY() + 1)
+                             * (mx.getBlockZ() - mn.getBlockZ() + 1);
+                    if (vol > 500_000) {
+                        sender.sendMessage(plugin.getConfigManager().prefix
+                                + "§eRegion sangat besar (" + vol + " blok). Scan mungkin memakan waktu sebentar...");
+                    }
+                    sender.sendMessage(plugin.getConfigManager().prefix
+                            + "§7Sedang scan region §e" + regionName + " §7(BlockRegen)...");
+                    result = plugin.getAutoScanManager().scanRegion(internalRegion);
+                } else {
+                    // Fall back to WorldGuard
+                    if (!plugin.getConfigManager().worldGuardEnabled || plugin.getWorldGuardPlugin() == null) {
+                        sender.sendMessage(plugin.getConfigManager().prefix
+                                + "§cRegion §e" + regionName + "§c tidak ditemukan di BlockRegen, dan WorldGuard tidak aktif.");
+                        return true;
+                    }
+                    sender.sendMessage(plugin.getConfigManager().prefix
+                            + "§7Tidak ditemukan di BlockRegen. Mencari di WorldGuard...");
+                    result = plugin.getAutoScanManager().scanWorldGuardRegion(regionName);
+                    if (result == null) {
+                        sender.sendMessage(plugin.getConfigManager().prefix
+                                + "§cRegion §e" + regionName + "§c tidak ditemukan di BlockRegen maupun WorldGuard.");
+                        return true;
+                    }
+                    regionSource = "WorldGuard";
+                    sender.sendMessage(plugin.getConfigManager().prefix
+                            + "§7Sedang scan region §e" + regionName + " §7(WorldGuard)...");
+                }
+
+                if (result.total == 0) {
+                    sender.sendMessage(plugin.getConfigManager().prefix
+                            + "§7Tidak ada regen block yang ditemukan di region §e" + regionName + "§7.");
+                } else {
+                    sender.sendMessage(plugin.getConfigManager().prefix
+                            + "§aScan region §e" + regionName + " §7[" + regionSource + "]§a selesai!");
+                    sender.sendMessage("  §7Block ditemukan : §e" + result.total);
+                    sender.sendMessage("  §aDidaftarkan baru: §e" + result.added);
+                    sender.sendMessage("  §7Sudah terdaftar : §e" + result.skipped);
+                }
+            }
+
             default -> {
-                player.sendMessage(plugin.getConfigManager().prefix + "§6/br scan §7<wand|list|cycle|info>");
-                player.sendMessage("  §e/br scan wand  §7- Dapatkan wand untuk toggle scan point");
-                player.sendMessage("  §e/br scan list  §7- Lihat semua scan point yang terdaftar");
-                player.sendMessage("  §e/br scan cycle §7- Paksa jalankan siklus sekarang");
-                player.sendMessage("  §e/br scan info  §7- Lihat status dan konfigurasi sistem");
+                sender.sendMessage(plugin.getConfigManager().prefix + "§6/br scan §7<wand|list|cycle|info|region>");
+                sender.sendMessage("  §e/br scan wand          §7- Dapatkan wand untuk toggle scan point");
+                sender.sendMessage("  §e/br scan list          §7- Lihat semua scan point yang terdaftar");
+                sender.sendMessage("  §e/br scan cycle         §7- Paksa jalankan siklus sekarang");
+                sender.sendMessage("  §e/br scan info          §7- Lihat status dan konfigurasi sistem");
+                sender.sendMessage("  §e/br scan region <nama> §7- Scan region & daftarkan semua regen block secara otomatis");
+            }
+        }
+
+        return true;
+    }
+
+    // -------------------------------------------------------------------------
+    // /br model handler
+    // -------------------------------------------------------------------------
+
+    private boolean handleModelCommand(CommandSender sender, String[] args) {
+        if (!BlockRegen.modelEngineEnabled) {
+            sender.sendMessage(plugin.getConfigManager().prefix + "§cModel Engine tidak aktif di server ini.");
+            return true;
+        }
+
+        String sub = args.length >= 2 ? args[1].toLowerCase() : "help";
+
+        switch (sub) {
+            case "clean" -> {
+                // Hapus model di block yang player lihat
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(plugin.getConfigManager().prefix + "Perintah ini hanya bisa dijalankan oleh player.");
+                    return true;
+                }
+                Block target = player.getTargetBlockExact(10);
+                if (target == null) {
+                    // Coba cari entity di depan player sebagai alternatif
+                    sender.sendMessage(plugin.getConfigManager().prefix + "§cArahkan crosshair ke blok atau area yang modelnya ingin dihapus (jangkauan 10 blok).");
+                    return true;
+                }
+                Location loc = target.getLocation();
+                boolean hadModel = ModelEngineUtil.hasModel(loc);
+                ModelEngineUtil.removeModel(loc);
+                ModelEngineUtil.restoreHiddenBlock(loc);
+                if (hadModel) {
+                    player.sendMessage(plugin.getConfigManager().prefix + "§aModel di lokasi §e"
+                            + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ()
+                            + " §atelah dihapus.");
+                } else {
+                    player.sendMessage(plugin.getConfigManager().prefix + "§7Tidak ada model terdaftar di lokasi tersebut. Model entity tetap dihapus jika ada.");
+                }
+            }
+
+            case "cleanall" -> {
+                // Hapus SEMUA model aktif
+                int count = ModelEngineUtil.getActiveModelCount();
+                ModelEngineUtil.removeAll();
+                sender.sendMessage(plugin.getConfigManager().prefix + "§aSemua model §e(" + count + ")§a telah dihapus dari dunia.");
+            }
+
+            default -> {
+                sender.sendMessage(plugin.getConfigManager().prefix + "§6/br model §7<clean|cleanall>");
+                sender.sendMessage("  §e/br model clean    §7- Hapus model di block yang kamu lihat (jika bug/nyangkut)");
+                sender.sendMessage("  §e/br model cleanall §7- Hapus SEMUA model aktif di dunia (emergency cleanup)");
             }
         }
 

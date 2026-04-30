@@ -181,6 +181,10 @@ messages:
   # Message sent when a player tries to break a regen block with the wrong tool.
   wrong-tool: "&cKamu harus memerlukan %tool%."
 
+  # Message sent when a player's pickaxe power is too low to break the block.
+  # Placeholders: %power%
+  low-pickaxe-power: "&cButuh power %power%, tapi power kamu hanya %your_power%."
+
   # Message sent when the block is already being mined by someone else.
   block-being-mined: "&cBlock ini sedang dimining orang lain."
 

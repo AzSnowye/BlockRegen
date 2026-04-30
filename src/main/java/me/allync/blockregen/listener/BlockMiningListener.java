@@ -14,6 +14,7 @@ import me.allync.blockregen.data.MiningTargetKey;
 import me.allync.blockregen.data.ToolRequirement;
 import me.allync.blockregen.manager.MiningManager;
 import me.allync.blockregen.task.PlayerMiningTask;
+import me.allync.blockregen.util.ItemUtil;
 import me.allync.blockregen.util.SoundUtil;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -166,6 +167,17 @@ public class BlockMiningListener implements Listener {
             return;
         }
 
+        // Hitung pickaxe power jika block punya tool requirement atau power requirement
+        // (Perlu dihitung lebih awal agar bisa digunakan di pengecekan tool requirement)
+        double power = (data.requiresPickaxePower() || data.requiresTool())
+                ? ItemUtil.getPickaxePower(player.getInventory().getItemInMainHand())
+                : 0.0;
+
+        if (data.requiresPickaxePower() || data.requiresTool()) {
+            miningManager.debug(player, blockIdentifier, "&7Pickaxe power terdeteksi: &f" + power
+                    + (data.requiresPickaxePower() ? " &7(req: &f" + data.getRequirePickaxePower() + "&7)" : ""));
+        }
+
         if (data.requiresTool()) {
             ItemStack itemInHand = player.getInventory().getItemInMainHand();
             boolean toolMatches = false;
@@ -175,6 +187,13 @@ public class BlockMiningListener implements Listener {
                     break;
                 }
             }
+
+            // Jika tidak cocok dengan list, tapi punya pickaxe power cukup, anggap cocok (pickaxe yang lebih kuat)
+            if (!toolMatches && data.requiresPickaxePower() && power >= data.getRequirePickaxePower()) {
+                toolMatches = true;
+                miningManager.debug(player, blockIdentifier, "&aTool requirement met via pickaxe power (" + power + " >= " + data.getRequirePickaxePower() + ")");
+            }
+
             if (!toolMatches) {
                 miningManager.debug(player, blockIdentifier, "&cTool requirement not met.");
                 String requiredTools = miningManager.formatRequiredTools(data);
@@ -182,6 +201,24 @@ public class BlockMiningListener implements Listener {
                 SoundUtil.playSoundToPlayer(player, block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
                 return;
             }
+        }
+
+        if (data.requiresPickaxePower()) {
+            if (power < data.getRequirePickaxePower()) {
+                miningManager.debug(player, blockIdentifier, "&cPickaxe power too low (" + power + " < " + data.getRequirePickaxePower() + ")");
+                
+                String reqStr = String.valueOf((int) data.getRequirePickaxePower());
+                String curStr = String.format("%.1f", power);
+
+                String msg = plugin.getConfigManager().lowPickaxePowerMessage
+                        .replace("%power%", reqStr)
+                        .replace("%your_power%", curStr);
+
+                player.sendMessage(msg);
+                SoundUtil.playSoundToPlayer(player, block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
+                return;
+            }
+            miningManager.debug(player, blockIdentifier, "&aPickaxe power requirement met (" + power + " >= " + data.getRequirePickaxePower() + ")");
         }
 
         // --- 6. Create and Start New Task ---
@@ -356,5 +393,36 @@ public class BlockMiningListener implements Listener {
             }
         }
         return Math.max(plugin.getConfigManager().miningDefaultTouchLimit, limit);
+    }
+    public boolean isBlockBusy(org.bukkit.Location loc) {
+        MiningTargetKey key = MiningTargetKey.from(loc);
+        if (activeBlockMiners.containsKey(key)) {
+            return true;
+        }
+        if (persistedProgress.containsKey(key)) {
+            MiningProgressState state = persistedProgress.get(key);
+            long now = System.currentTimeMillis();
+            if (now - state.getUpdatedAtMs() < plugin.getConfigManager().miningResumeTimeoutMs) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Batalkan task mining di lokasi ini secara langsung.
+     * Dipanggil oleh MiningManager.cancelMiningAt() saat cycle/relocate.
+     */
+    public void cancelTaskAt(org.bukkit.Location loc) {
+        if (loc == null) return;
+        MiningTargetKey key = MiningTargetKey.from(loc);
+        UUID miner = activeBlockMiners.get(key);
+        if (miner != null) {
+            PlayerMiningTask task = activeMiningTasks.get(miner);
+            if (task != null) task.cancelTask();
+        }
+        // Hapus juga persisted progress agar blok tidak terkunci
+        persistedProgress.remove(key);
+        activeBlockMiners.remove(key);
     }
 }

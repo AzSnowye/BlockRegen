@@ -286,6 +286,7 @@ QUARTZ_ORE:
   break-duration: 20.0
   regions:
     - map1wd
+  require-pickaxe-power: 30
   tools-required:
     - mmoitems:PICKAXE:CRACKED_PICKAXE
     - mmoitems:PICKAXE:RUSTED_PICKAXE
@@ -354,4 +355,39 @@ QUARTZ_ORE:
       chance: 20.0
   commands:
     - '[CONSOLE] agaterawblock %player%'
+
+
+# ---------------------------------------------------------------------------------------------------- #
+# 12. MODEL ENGINE ORE (AMETHYST_CLUSTER)                                                              #
+#    - Blok dengan model 3D dari Model Engine yang muncul di atasnya.                                  #
+#    - Model akan otomatis dihapus saat dibreak dan di-spawn kembali setelah regen selesai.            #
+#    - Memerlukan plugin Model Engine dan file .bbmodel yang sudah diinstall.                          #
+# ---------------------------------------------------------------------------------------------------- #
+AMETHYST_CLUSTER:
+  replaced-block: STONE
+  regen-delay: 20
+  drops:
+    auto-inventory: false
+    natural-drop: true
+
+  # --- MODEL ENGINE ---
+  # Konfigurasi model 3D dari Model Engine untuk blok ini.
+  # Jika Model Engine tidak terinstall, bagian ini akan diabaikan sepenuhnya.
+  model-engine:
+    # ID blueprint model (nama file .bbmodel tanpa ekstensi, persis seperti di folder blueprints/)
+    model-id: "amethyst_crystal"
+
+    # Rotasi horizontal model dalam derajat (0 = menghadap Selatan, 90 = Barat, 180 = Utara, 270 = Timur)
+    yaw: 0.0
+
+    # Offset ketinggian model di atas blok (dalam blok).
+    # Gunakan nilai negatif jika model terlalu tinggi, positif jika terlalu rendah.
+    height-offset: 0.0
+
+    # Jika true: blok asli akan disembunyikan (jadi AIR), hanya model yang terlihat.
+    # Player harus HIT entity model untuk memulai menambang.
+    # Gunakan ini agar model tidak "nempel" atau tumpang-tindih dengan blok aslinya.
+    # Default: false
+    hide-block: true
+  # --- AKHIR MODEL ENGINE ---
 

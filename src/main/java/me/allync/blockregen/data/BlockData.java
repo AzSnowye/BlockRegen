@@ -41,6 +41,17 @@ public class BlockData {
     private final double autoScanActiveChance; // -1 = use global default from config
     // --- AKHIR AUTO-SCAN ---
 
+    // --- MMOITEMS POWER ---
+    private final double requirePickaxePower;
+    // --- AKHIR MMOITEMS POWER ---
+
+    // --- MODEL ENGINE ---
+    private final String modelEngineId;
+    private final float modelYaw;
+    private final double modelHeightOffset;
+    private final boolean modelHideBlock;
+    // --- AKHIR MODEL ENGINE ---
+
     @SuppressWarnings("unchecked")
     public BlockData(ConfigurationSection section) {
         this.replacedBlock = Material.valueOf(section.getString("replaced-block", "STONE").toUpperCase());
@@ -196,6 +207,25 @@ public class BlockData {
                 ? section.getDouble("auto-scan.active-chance", -1.0)
                 : -1.0;
         // --- AKHIR AUTO-SCAN ---
+
+        // --- MMOITEMS POWER ---
+        this.requirePickaxePower = section.getDouble("require-pickaxe-power", 0.0);
+        // --- AKHIR MMOITEMS POWER ---
+
+        // --- MODEL ENGINE ---
+        ConfigurationSection modelEngineSection = section.getConfigurationSection("model-engine");
+        if (modelEngineSection != null) {
+            this.modelEngineId = modelEngineSection.getString("model-id");
+            this.modelYaw = (float) modelEngineSection.getDouble("yaw", 0.0);
+            this.modelHeightOffset = modelEngineSection.getDouble("height-offset", 0.0);
+            this.modelHideBlock = modelEngineSection.getBoolean("hide-block", false);
+        } else {
+            this.modelEngineId = null;
+            this.modelYaw = 0f;
+            this.modelHeightOffset = 0.0;
+            this.modelHideBlock = false;
+        }
+        // --- AKHIR MODEL ENGINE ---
     }
 
     public static class FortuneData {
@@ -418,4 +448,53 @@ public class BlockData {
         return autoScanActiveChance;
     }
     // --- AKHIR GETTER AUTO-SCAN ---
+
+    // --- GETTER MMOITEMS POWER ---
+    public double getRequirePickaxePower() {
+        return requirePickaxePower;
+    }
+
+    public boolean requiresPickaxePower() {
+        return requirePickaxePower > 0;
+    }
+    // --- AKHIR GETTER MMOITEMS POWER ---
+
+    // --- GETTER MODEL ENGINE ---
+    /**
+     * Mengembalikan ID blueprint Model Engine untuk blok ini.
+     * Null jika tidak dikonfigurasi.
+     */
+    public String getModelEngineId() {
+        return modelEngineId;
+    }
+
+    /**
+     * Apakah blok ini memiliki model dari Model Engine.
+     */
+    public boolean hasModelEngine() {
+        return modelEngineId != null && !modelEngineId.isEmpty();
+    }
+
+    /**
+     * Rotasi horizontal (yaw) model dalam derajat (0 = menghadap Selatan).
+     */
+    public float getModelYaw() {
+        return modelYaw;
+    }
+
+    /**
+     * Offset Y model di atas blok (dalam blok). 0 = tepat di atas permukaan blok.
+     */
+    public double getModelHeightOffset() {
+        return modelHeightOffset;
+    }
+
+    /**
+     * Jika true, blok asli akan diganti AIR saat model aktif.
+     * Player harus menyentuh entity model untuk menambang.
+     */
+    public boolean isModelHideBlock() {
+        return modelHideBlock;
+    }
+    // --- AKHIR GETTER MODEL ENGINE ---
 }

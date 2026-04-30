@@ -11,6 +11,8 @@ import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.BlockData;
 import me.allync.blockregen.data.ToolRequirement;
 import me.allync.blockregen.manager.MiningManager;
+import me.allync.blockregen.util.ItemUtil;
+import me.allync.blockregen.util.ModelEngineUtil;
 import me.allync.blockregen.util.SoundUtil;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -54,6 +56,11 @@ public class BlockBreakListener implements Listener {
 
         if (player.getGameMode() == GameMode.CREATIVE) {
             debug(player, blockIdentifier, "Player is in CREATIVE mode. &cIgnoring event.");
+            // Tetap hapus model jika ada (admin break)
+            if (BlockRegen.modelEngineEnabled) {
+                ModelEngineUtil.removeModel(block.getLocation());
+                ModelEngineUtil.restoreHiddenBlock(block.getLocation());
+            }
             return;
         }
 
@@ -184,6 +191,16 @@ public class BlockBreakListener implements Listener {
         }
         final BlockState originalState = block.getState();
 
+        // Hitung pickaxe power jika block punya tool requirement atau power requirement
+        double power = (data.requiresPickaxePower() || data.requiresTool())
+                ? ItemUtil.getPickaxePower(player.getInventory().getItemInMainHand())
+                : 0.0;
+
+        if (data.requiresPickaxePower() || data.requiresTool()) {
+            debug(player, blockIdentifier, "&7Pickaxe power terdeteksi: &f" + power
+                    + (data.requiresPickaxePower() ? " &7(req: &f" + data.getRequirePickaxePower() + "&7)" : ""));
+        }
+
         if (data.requiresTool()) {
             debug(player, blockIdentifier, "Tool requirement check initiated.");
             ItemStack itemInHand = player.getInventory().getItemInMainHand();
@@ -195,6 +212,13 @@ public class BlockBreakListener implements Listener {
                     break;
                 }
             }
+
+            // Jika tidak cocok dengan list, tapi punya pickaxe power cukup, anggap cocok (pickaxe yang lebih kuat)
+            if (!toolMatches && data.requiresPickaxePower() && power >= data.getRequirePickaxePower()) {
+                toolMatches = true;
+                debug(player, blockIdentifier, "&aTool requirement met via pickaxe power (" + power + " >= " + data.getRequirePickaxePower() + ")");
+            }
+
             if (!toolMatches) {
                 debug(player, blockIdentifier, "&cTool requirement not met. Player's item: &f" + itemInHand.getType());
                 String requiredTools = miningManager.formatRequiredTools(data);
@@ -203,6 +227,25 @@ public class BlockBreakListener implements Listener {
                 event.setCancelled(true);
                 return;
             }
+        }
+
+        if (data.requiresPickaxePower()) {
+            if (power < data.getRequirePickaxePower()) {
+                debug(player, blockIdentifier, "&cPickaxe power too low (" + power + " < " + data.getRequirePickaxePower() + ")");
+                
+                String reqStr = String.valueOf((int) data.getRequirePickaxePower());
+                String curStr = String.format("%.1f", power);
+                
+                String msg = plugin.getConfigManager().lowPickaxePowerMessage
+                        .replace("%power%", reqStr)
+                        .replace("%your_power%", curStr);
+                
+                player.sendMessage(msg);
+                SoundUtil.playSoundToPlayer(player, block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
+                event.setCancelled(true);
+                return;
+            }
+            debug(player, blockIdentifier, "&aPickaxe power requirement met (" + power + " >= " + data.getRequirePickaxePower() + ")");
         }
 
         debug(player, blockIdentifier, "Handling drops, commands, and EXP via MiningManager...");

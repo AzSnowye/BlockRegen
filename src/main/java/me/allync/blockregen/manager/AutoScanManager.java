@@ -1,8 +1,14 @@
 package me.allync.blockregen.manager;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.protection.managers.RegionManager;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.AutoScanPoint;
 import me.allync.blockregen.data.BlockData;
+import me.allync.blockregen.util.ModelEngineUtil;
 import me.allync.blockregen.util.NexoUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -159,8 +165,12 @@ public class AutoScanManager {
         String key = buildKey(location);
 
         if (points.containsKey(key)) {
-            // Remove and restore block to ore state before deregistering
             AutoScanPoint point = points.remove(key);
+            // Hapus model jika ada sebelum restore
+            if (BlockRegen.modelEngineEnabled) {
+                ModelEngineUtil.removeModel(location);
+                ModelEngineUtil.restoreHiddenBlock(location);
+            }
             restoreOreBlock(point);
             save();
             return -1; // removed
@@ -196,6 +206,11 @@ public class AutoScanManager {
             Location loc = point.getLocation();
             if (loc.getWorld() == null) continue;
 
+            // NEW: Skip if block is currently being mined/touched by a player
+            if (plugin.getBlockMiningListener() != null && plugin.getBlockMiningListener().isBlockBusy(loc)) {
+                continue;
+            }
+
             // Get per-block active chance if configured, otherwise use global default
             double chance = getActiveChance(point.getBlockIdentifier());
             boolean shouldBeActive = ThreadLocalRandom.current().nextDouble(100.0) < chance;
@@ -207,8 +222,18 @@ public class AutoScanManager {
             if (shouldBeActive) {
                 // Place the ore block
                 placeOreBlock(point);
+                // Spawn model jika block ini punya model engine
+                if (BlockRegen.modelEngineEnabled) {
+                    spawnModelForBlock(point.getBlockIdentifier(), loc);
+                }
             } else {
-                // Replace with placeholder
+                // Hapus model dulu sebelum ganti jadi placeholder
+                if (BlockRegen.modelEngineEnabled) {
+                    ModelEngineUtil.removeModel(loc);
+                    ModelEngineUtil.restoreHiddenBlock(loc);
+                }
+                // Batalkan mining task yang mungkin sedang aktif
+                plugin.getMiningManager().cancelMiningAt(loc);
                 loc.getBlock().setType(point.getPlaceholder(), false);
             }
         }
@@ -228,7 +253,14 @@ public class AutoScanManager {
         point.setActive(nowActive);
         if (nowActive) {
             placeOreBlock(point);
+            if (BlockRegen.modelEngineEnabled) {
+                spawnModelForBlock(point.getBlockIdentifier(), location);
+            }
         } else {
+            if (BlockRegen.modelEngineEnabled) {
+                ModelEngineUtil.removeModel(location);
+                ModelEngineUtil.restoreHiddenBlock(location);
+            }
             point.getLocation().getBlock().setType(point.getPlaceholder(), false);
         }
         save();
@@ -314,6 +346,137 @@ public class AutoScanManager {
     private void restoreOreBlock(AutoScanPoint point) {
         // When a point is unregistered, restore it to the ore state
         placeOreBlock(point);
+    }
+
+    /**
+     * Spawn model untuk blok di lokasi, jika block tersebut punya konfigurasi Model Engine.
+     * Hanya dipanggil jika ModelEngine aktif.
+     */
+    private void spawnModelForBlock(String blockIdentifier, Location location) {
+        BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier);
+        if (data == null || !data.hasModelEngine()) return;
+        ModelEngineUtil.spawnModel(
+                location,
+                data.getModelEngineId(),
+                data.getModelYaw(),
+                data.getModelHeightOffset(),
+                data.isModelHideBlock()
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Region Scan
+    // -------------------------------------------------------------------------
+
+    /**
+     * Result object returned by {@link #scanRegion(me.allync.blockregen.data.Region)}.
+     */
+    public static class ScanResult {
+        public final int added;
+        public final int skipped;   // already registered
+        public final int total;     // total regen blocks found
+
+        public ScanResult(int added, int skipped, int total) {
+            this.added   = added;
+            this.skipped = skipped;
+            this.total   = total;
+        }
+    }
+
+    /**
+     * Scans every block inside a BlockRegen internal {@code region} and registers any
+     * configured regen block that is not already an auto-scan point.
+     *
+     * @param region the BlockRegen {@link me.allync.blockregen.data.Region} to scan.
+     * @return a {@link ScanResult} describing how many blocks were found/added/skipped.
+     */
+    public ScanResult scanRegion(me.allync.blockregen.data.Region region) {
+        World world = region.getWorld();
+        if (world == null) return new ScanResult(0, 0, 0);
+        Location min = region.getMinPoint();
+        Location max = region.getMaxPoint();
+        return scanBoundingBox(world,
+                min.getBlockX(), min.getBlockY(), min.getBlockZ(),
+                max.getBlockX(), max.getBlockY(), max.getBlockZ());
+    }
+
+    /**
+     * Scans every block inside a WorldGuard region (by name) across all loaded worlds.
+     * Falls back gracefully when WorldGuard is disabled.
+     *
+     * @param regionName the WorldGuard region ID (case-insensitive).
+     * @return a {@link ScanResult}, or {@code null} if the WG region was not found in any world.
+     */
+    public ScanResult scanWorldGuardRegion(String regionName) {
+        if (!plugin.getConfigManager().worldGuardEnabled || plugin.getWorldGuardPlugin() == null) {
+            return null;
+        }
+        for (World world : Bukkit.getWorlds()) {
+            try {
+                RegionManager wgRM = WorldGuard.getInstance()
+                        .getPlatform()
+                        .getRegionContainer()
+                        .get(BukkitAdapter.adapt(world));
+                if (wgRM == null) continue;
+
+                ProtectedRegion pr = wgRM.getRegion(regionName.toLowerCase());
+                if (pr == null) continue;
+
+                BlockVector3 min = pr.getMinimumPoint();
+                BlockVector3 max = pr.getMaximumPoint();
+                return scanBoundingBox(world,
+                        min.x(), min.y(), min.z(),
+                        max.x(), max.y(), max.z());
+            } catch (Exception ignored) {
+                // Keep iterating other worlds if one fails
+            }
+        }
+        return null; // not found in any world
+    }
+
+    /**
+     * Core implementation: iterates every block in the given axis-aligned bounding box
+     * and registers any configured regen block not already tracked.
+     */
+    private ScanResult scanBoundingBox(World world,
+                                       int minX, int minY, int minZ,
+                                       int maxX, int maxY, int maxZ) {
+        int added   = 0;
+        int skipped = 0;
+        int total   = 0;
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    org.bukkit.block.Block block = world.getBlockAt(x, y, z);
+
+                    String blockId = plugin.getMiningManager().getBlockIdentifier(block);
+                    if (!plugin.getBlockManager().isRegenBlock(blockId)) continue;
+
+                    total++;
+                    Location loc = block.getLocation();
+                    String key = buildKey(loc);
+
+                    if (points.containsKey(key)) {
+                        skipped++;
+                        continue;
+                    }
+
+                    BlockData data = plugin.getBlockManager().getBlockData(blockId);
+                    Material placeholder = (data != null) ? data.getReplacedBlock() : defaultPlaceholder;
+
+                    AutoScanPoint point = new AutoScanPoint(blockId, loc, placeholder, true);
+                    points.put(key, point);
+                    added++;
+                }
+            }
+        }
+
+        if (added > 0) {
+            save();
+        }
+
+        return new ScanResult(added, skipped, total);
     }
 
     private String buildKey(Location loc) {

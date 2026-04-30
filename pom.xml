@@ -94,6 +94,11 @@
             <name>FancyInnovations Repository</name>
             <url>https://repo.fancyinnovations.com/releases</url>
         </repository>
+        <repository>
+            <id>nexus</id>
+            <name>Lumine Public</name>
+            <url>https://mvn.lumine.io/repository/maven-public/</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -163,6 +168,14 @@
             <artifactId>FancyHolograms</artifactId>
             <version>2.9.1</version>
             <scope>provided</scope>
+        </dependency>
+        <!-- Model Engine API (via Lumine Public repo) -->
+        <dependency>
+            <groupId>com.ticxo.modelengine</groupId>
+            <artifactId>ModelEngine</artifactId>
+            <version>R4.1.0</version>
+            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 </project>

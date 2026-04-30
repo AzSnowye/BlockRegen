@@ -3,7 +3,7 @@ version: '2.5'
 main: me.allync.blockregen.BlockRegen
 api-version: '1.21'
 loadbefore: []
-softdepend: [WorldGuard, ItemsAdder, MMOItems, MMOCore, AuraSkills, FancyHolograms, Vault, CoinsEngine, Nexo]
+softdepend: [WorldGuard, ItemsAdder, MMOItems, MMOCore, AuraSkills, FancyHolograms, Vault, CoinsEngine, Nexo, ModelEngine]
 author: Allync
 description: A highly optimized and configurable block regeneration plugin.
 commands:

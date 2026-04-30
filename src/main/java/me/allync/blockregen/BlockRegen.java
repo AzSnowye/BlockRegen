@@ -9,6 +9,7 @@ import me.allync.blockregen.task.AutoScanCycleTask;
 import me.allync.blockregen.task.RandomOreSpawnTask;
 import me.allync.blockregen.util.BreakDurationHologramUtil;
 import me.allync.blockregen.util.ItemUtil;
+import me.allync.blockregen.util.ModelEngineUtil;
 // Hapus import MiningMonitorTask
 // import me.allync.blockregen.task.MiningMonitorTask;
 import me.allync.blockregen.util.UpdateChecker;
@@ -39,6 +40,7 @@ public final class BlockRegen extends JavaPlugin {
     private BlockMiningListener blockMiningListener;
     private AutoScanManager autoScanManager;
     private AutoScanCycleTask autoScanCycleTask;
+    private ModelEngineHitListener modelEngineHitListener;
     // Hapus field MiningMonitorTask
     // private MiningMonitorTask miningMonitor;
 
@@ -53,6 +55,7 @@ public final class BlockRegen extends JavaPlugin {
     public static boolean auraSkillsEnabled;
     public static boolean fancyHologramsEnabled;
     public static boolean coinsEngineEnabled;
+    public static boolean modelEngineEnabled;
 
     private final Set<UUID> debuggingPlayers = new HashSet<>();
     private final Set<UUID> bypassPlayers = new HashSet<>();
@@ -90,6 +93,11 @@ public final class BlockRegen extends JavaPlugin {
         fancyHologramsEnabled = getServer().getPluginManager().isPluginEnabled("FancyHolograms");
         if (fancyHologramsEnabled) {
             getLogger().info("FancyHolograms found, break-duration hologram integration enabled.");
+        }
+        modelEngineEnabled = getServer().getPluginManager().isPluginEnabled("ModelEngine");
+        if (modelEngineEnabled) {
+            getLogger().info("ModelEngine found, integration enabled.");
+            ModelEngineUtil.init(this);
         }
 
         configManager = new ConfigManager(this);
@@ -141,9 +149,13 @@ public final class BlockRegen extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerConnectionListener(this), this);
         getServer().getPluginManager().registerEvents(new GUIListener(this), this);
         blockMiningListener = new BlockMiningListener(this);
-        getServer().getPluginManager().registerEvents(blockMiningListener, this); // Daftarkan listener baru
+        getServer().getPluginManager().registerEvents(blockMiningListener, this);
         if (nexoEnabled) {
             getServer().getPluginManager().registerEvents(new NexoLoadListener(this), this);
+        }
+        if (modelEngineEnabled) {
+            modelEngineHitListener = new ModelEngineHitListener(this);
+            getServer().getPluginManager().registerEvents(modelEngineHitListener, this);
         }
 
         // Hapus task monitor
@@ -177,7 +189,13 @@ public final class BlockRegen extends JavaPlugin {
         if (blockMiningListener != null) {
             blockMiningListener.shutdown();
         }
+        if (modelEngineHitListener != null) {
+            modelEngineHitListener.shutdown();
+        }
         BreakDurationHologramUtil.removeAll();
+        if (modelEngineEnabled) {
+            ModelEngineUtil.removeAll();
+        }
         if (regenManager != null) {
             regenManager.handleShutdown();
         }
@@ -323,4 +341,6 @@ public final class BlockRegen extends JavaPlugin {
     public AutoScanManager getAutoScanManager() { return autoScanManager; }
     public WorldGuardPlugin getWorldGuardPlugin() { return worldGuardPlugin; }
     public Economy getEconomy() { return economy; }
+    public BlockMiningListener getBlockMiningListener() { return blockMiningListener; }
+    public ModelEngineHitListener getModelEngineHitListener() { return modelEngineHitListener; }
 }

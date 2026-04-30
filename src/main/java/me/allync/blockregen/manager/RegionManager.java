@@ -189,4 +189,17 @@ public class RegionManager {
         }
         return names;
     }
+
+    /**
+     * Returns the Region with the given name (case-insensitive), or null if not found.
+     */
+    public Region getRegionByName(String name) {
+        if (name == null) return null;
+        for (Region region : regions) {
+            if (region.getName().equalsIgnoreCase(name)) {
+                return region;
+            }
+        }
+        return null;
+    }
 }

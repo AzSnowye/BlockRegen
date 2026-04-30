@@ -25,6 +25,7 @@ public class ConfigManager {
     public String noPermissionMessage;
     public String inventoryFullMessage;
     public String wrongToolMessage;
+    public String lowPickaxePowerMessage;
     public String blockBeingMinedMessage;
     public String touchLimitReachedMessage;
     public String regenCountdownMessage;
@@ -117,6 +118,7 @@ public class ConfigManager {
         this.noPermissionMessage = this.prefix + getColoredString("messages.no-permission");
         this.inventoryFullMessage = this.prefix + getColoredString("messages.inventory-full");
         this.wrongToolMessage = this.prefix + getColoredString("messages.wrong-tool");
+        this.lowPickaxePowerMessage = this.prefix + getColoredString("messages.low-pickaxe-power");
         this.blockBeingMinedMessage = this.prefix + getColoredString("messages.block-being-mined");
         this.touchLimitReachedMessage = this.prefix + getColoredString("messages.touch-limit-reached");
         this.regenCountdownMessage = getColoredString("messages.regen-countdown");

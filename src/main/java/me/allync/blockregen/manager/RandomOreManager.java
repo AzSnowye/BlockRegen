@@ -3,6 +3,7 @@ package me.allync.blockregen.manager;
 import dev.lone.itemsadder.api.CustomBlock;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.BlockData;
+import me.allync.blockregen.util.ModelEngineUtil;
 import me.allync.blockregen.util.NexoUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -557,32 +558,54 @@ public class RandomOreManager {
     }
 
     private boolean placeIdentifier(String blockIdentifier, Location location) {
+        boolean placed;
         if (blockIdentifier.toLowerCase(Locale.ROOT).startsWith("nexo:")) {
-            return BlockRegen.nexoEnabled && NexoUtil.placeNexoBlock(blockIdentifier, location);
-        }
-
-        if (blockIdentifier.contains(":")) {
+            placed = BlockRegen.nexoEnabled && NexoUtil.placeNexoBlock(blockIdentifier, location);
+        } else if (blockIdentifier.contains(":")) {
             if (!BlockRegen.itemsAdderEnabled) {
-                return false;
+                placed = false;
+            } else {
+                try {
+                    placed = CustomBlock.place(blockIdentifier, location) != null;
+                } catch (Throwable ignored) {
+                    placed = false;
+                }
             }
-            try {
-                return CustomBlock.place(blockIdentifier, location) != null;
-            } catch (Throwable ignored) {
-                return false;
+        } else {
+            Material material = parseMaterial(blockIdentifier);
+            if (material == null) {
+                placed = false;
+            } else {
+                location.getBlock().setType(material, false);
+                placed = true;
             }
         }
 
-        Material material = parseMaterial(blockIdentifier);
-        if (material == null) {
-            return false;
+        // Setelah blok berhasil ditempatkan, spawn model jika dikonfigurasi
+        if (placed && BlockRegen.modelEngineEnabled) {
+            BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier);
+            if (data != null && data.hasModelEngine()) {
+                ModelEngineUtil.spawnModel(
+                        location,
+                        data.getModelEngineId(),
+                        data.getModelYaw(),
+                        data.getModelHeightOffset(),
+                        data.isModelHideBlock()
+                );
+            }
         }
-        location.getBlock().setType(material, false);
-        return true;
+
+        return placed;
     }
 
     private void clearToEmpty(Material material, Location location) {
-        if (location == null || material == null) {
-            return;
+        if (location == null || material == null) return;
+        // Batalkan mining task yang mungkin sedang aktif di lokasi ini
+        plugin.getMiningManager().cancelMiningAt(location);
+        // Hapus model Engine jika ada (termasuk kembalikan hidden block)
+        if (BlockRegen.modelEngineEnabled) {
+            ModelEngineUtil.removeModel(location);
+            ModelEngineUtil.restoreHiddenBlock(location);
         }
         NexoUtil.removeNexoBlock(location);
         location.getBlock().setType(material, false);

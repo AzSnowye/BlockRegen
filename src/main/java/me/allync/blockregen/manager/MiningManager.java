@@ -6,6 +6,7 @@ import me.allync.blockregen.data.BlockData;
 import me.allync.blockregen.data.CustomDrop;
 import me.allync.blockregen.data.ToolRequirement;
 import me.allync.blockregen.util.ItemUtil;
+import me.allync.blockregen.util.ModelEngineUtil;
 import me.allync.blockregen.util.NexoUtil;
 import me.allync.blockregen.util.ParticleUtil;
 import me.allync.blockregen.util.SoundUtil;
@@ -77,6 +78,15 @@ public class MiningManager {
         // set the block to AIR as part of BlockBreakEvent completion.
         // Calling getBlockIdentifier(block) now would always return "AIR" and abort the regen.
         // The identifier was already validated by the caller (BlockBreakListener / BlockMiningListener).
+
+        // 0. Jika blok ini punya Model Engine, hapus modelnya saat dibreak
+        if (BlockRegen.modelEngineEnabled && data.hasModelEngine()) {
+            ModelEngineUtil.removeModel(block.getLocation());
+            // Jika hide-block, restore blok asli sebelum proses drop (originalState sudah valid)
+            if (data.isModelHideBlock()) {
+                ModelEngineUtil.restoreHiddenBlock(block.getLocation());
+            }
+        }
 
         // 1. Handle Drops (Custom & Natural)
         handleAllDrops(player, block, data, blockIdentifier);
@@ -585,6 +595,25 @@ public class MiningManager {
             return false;
         }
         return activeMiningLocations.contains(location.getWorld().getName() + ":" + location.getBlockX() + ":" + location.getBlockY() + ":" + location.getBlockZ());
+    }
+
+    /**
+     * Batalkan task mining yang sedang berjalan di lokasi ini (jika ada).
+     * Dipanggil oleh cycle/relocate agar mining lock langsung bersih,
+     * tanpa harus menunggu task mendeteksi perubahan blok pada tick berikutnya.
+     */
+    public void cancelMiningAt(Location location) {
+        if (location == null || location.getWorld() == null) return;
+        // BlockMiningListener tasks
+        if (plugin.getBlockMiningListener() != null) {
+            plugin.getBlockMiningListener().cancelTaskAt(location);
+        }
+        // ModelEngineHitListener tasks
+        if (plugin.getModelEngineHitListener() != null) {
+            plugin.getModelEngineHitListener().cancelTaskAt(location);
+        }
+        // Paksa unmark langsung agar isBeingMined() sudah false sebelum cycle lanjut
+        unmarkMining(location);
     }
 
     // --- HAPUS SEMUA GETTER LAMA ---

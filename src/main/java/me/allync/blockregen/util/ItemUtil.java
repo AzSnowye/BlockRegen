@@ -4,6 +4,10 @@ import dev.lone.itemsadder.api.CustomStack;
 import me.allync.blockregen.BlockRegen;
 import net.Indyuce.mmoitems.MMOItems;
 import net.Indyuce.mmoitems.api.Type;
+import net.Indyuce.mmoitems.api.item.mmoitem.LiveMMOItem;
+import net.Indyuce.mmoitems.ItemStats;
+import net.Indyuce.mmoitems.stat.data.DoubleData;
+import net.Indyuce.mmoitems.stat.data.type.StatData;
 import me.allync.blockregen.data.CustomDrop;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -137,5 +141,52 @@ public class ItemUtil {
         } catch (NumberFormatException e) {
             return 1;
         }
+    }
+
+    /**
+     * Mendapatkan nilai Pickaxe Power dari item MMOItems (melalui MythicLib NBT).
+     * @param item Item yang akan dicek.
+     * @return Nilai Pickaxe Power, atau 0.0 jika tidak ada atau MMOItems tidak aktif.
+     */
+    public static double getPickaxePower(ItemStack item) {
+        if (!mmoItemsEnabled || item == null || item.getType() == Material.AIR) {
+            return 0.0;
+        }
+        try {
+            io.lumine.mythic.lib.api.item.NBTItem nbtItem = io.lumine.mythic.lib.api.item.NBTItem.get(item);
+
+            // Pastikan ini benar-benar item MMOItems sebelum membaca stat
+            if (!nbtItem.hasType()) {
+                // Bukan MMOItem, power = 0
+                return 0.0;
+            }
+
+            // Metode 1: Cek langsung via NBT tag (paling cepat)
+            if (nbtItem.hasTag("MMOITEMS_PICKAXE_POWER")) {
+                double val = nbtItem.getDouble("MMOITEMS_PICKAXE_POWER");
+                return val;
+            }
+
+            // Metode 2: Fallback ke LiveMMOItem API (lebih lambat, tapi lebih lengkap)
+            try {
+                LiveMMOItem liveItem = new LiveMMOItem(item);
+                if (liveItem.hasData(ItemStats.PICKAXE_POWER)) {
+                    StatData data = liveItem.getData(ItemStats.PICKAXE_POWER);
+                    if (data instanceof DoubleData) {
+                        double val = ((DoubleData) data).getValue();
+                        return val;
+                    }
+                }
+            } catch (Exception e2) {
+                System.err.println("[BlockRegen] LiveMMOItem fallback gagal untuk power: " + e2.getMessage());
+            }
+
+            // Item MMOItems tapi tidak punya stat PICKAXE_POWER
+            return 0.0;
+
+        } catch (NoClassDefFoundError | Exception e) {
+            System.err.println("[BlockRegen] Error membaca pickaxe power: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+        return 0.0;
     }
 }
