@@ -1,0 +1,116 @@
+stone_floor1:
+  Block: STONE
+  replaced-block: COBBLESTONE
+  regen-delay: 30
+  require-pickaxe-power: 3
+  natural-drop: true
+  regions:
+    - caves_floor1
+  regen-blocks:
+    STONE:
+      chance: 100.0
+    COAL_ORE:
+      chance: 60.0
+    COPPER_ORE:
+      chance: 15.0
+    IRON_ORE:
+      chance: 10.0
+  auraskills-xp:
+    mining: 0.2
+
+
+cobblestone_floor1:
+  Block: COBBLESTONE
+  replaced-block: BEDROCK
+  regen-delay: 5
+  require-pickaxe-power: 3
+  regions:
+    - caves_floor1
+  regen-blocks:
+    STONE:
+      chance: 100.0
+    COAL_ORE:
+      chance: 60.0
+    COPPER_ORE:
+      chance: 15.0
+    IRON_ORE:
+      chance: 10.0
+  custom-drops:
+    stone_drop:
+      chance: 100.0
+      amount: '1'
+      material: STONE
+  auraskills-xp:
+    mining: 0.2
+    
+coal_floor1:
+  Block: COAL_ORE
+  replaced-block: STONE
+  regions:
+    - caves_floor1
+  regen-delay: 30
+  require-pickaxe-power: 5
+  exp-drop-amount: '1-2'
+  auto-pickup-exp: true
+  regen-blocks:
+    STONE:
+      chance: 100.0
+    COAL_ORE:
+      chance: 60.0
+    COPPER_ORE:
+      chance: 15.0
+    IRON_ORE:
+      chance: 10.0
+  fortune:
+    enabled: true
+    multiplier: 1.5
+  auraskills-xp:
+    mining: 1
+
+copper_floor1:
+  Block: COPPER_ORE
+  replaced-block: STONE
+  regions:
+    - caves_floor1
+  regen-delay: 30
+  require-pickaxe-power: 8
+  exp-drop-amount: '1-3'
+  auto-pickup-exp: true
+  regen-blocks:
+    STONE:
+      chance: 100.0
+    COAL_ORE:
+      chance: 60.0
+    COPPER_ORE:
+      chance: 15.0
+    IRON_ORE:
+      chance: 10.0
+  fortune:
+    enabled: true
+    multiplier: 1.5
+  auraskills-xp:
+    mining: 3.5
+
+iron_floor1:
+  Block: IRON_ORE
+  replaced-block: STONE
+  regions:
+    - caves_floor1
+  regen-delay: 30
+  require-pickaxe-power: 10
+  exp-drop-amount: '1-3'
+  auto-pickup-exp: true
+  regen-blocks:
+    STONE:
+      chance: 100.0
+    COAL_ORE:
+      chance: 60.0
+    COPPER_ORE:
+      chance: 15.0
+    IRON_ORE:
+      chance: 10.0
+  fortune:
+    enabled: true
+    multiplier: 1.5
+  auraskills-xp:
+    mining: 1.8

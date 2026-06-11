@@ -31,6 +31,179 @@
 #   require-pickaxe-power: 5          # Minimum power yang bisa damage blok ini
 #   break-sound: "BLOCK_STONE_HIT:0.6:1.0"
 
+# ═════════════════════════════════════════════════════════════════════════ #
+#                    EXAMPLE: HEALTH MODE BLOCKS                           #
+#                    (HP-based Mining Mechanic)                            #
+# ═════════════════════════════════════════════════════════════════════════ #
+
+# ─────────────────────────────────────────────────────────────────────────── #
+# EXAMPLE 1: Basic Health Block (Emerald Ore)                                 #
+#            Simple health mode block dengan hologram health bar.             #
+# ─────────────────────────────────────────────────────────────────────────── #
+# EMERALD_ORE:
+#   replaced-block: STONE
+#   regen-delay: 20
+#   block-health: 80
+#   require-pickaxe-power: 10  # Minimum pickaxe power to damage
+#   drops:
+#     auto-inventory: false
+#     natural-drop: true
+#   sounds:
+#     break-sound: ENTITY_ITEM_PICKUP
+#     regen-sound: BLOCK_NOTE_BLOCK_CHIME
+#   particles:
+#     break-particle: CRIT_MAGIC
+#     regen-particle: SOUL_FIRE_FLAME
+
+# ─────────────────────────────────────────────────────────────────────────── #
+# EXAMPLE 2: Health Block dengan Custom Drops                                 #
+#            Health mode block yang hanya drop item custom saat hancur.        #
+# ─────────────────────────────────────────────────────────────────────────── #
+# DIAMOND_ORE:
+#   replaced-block: BEDROCK
+#   regen-delay: 30
+#   block-health: 150            # Butuh dipukul lebih banyak
+#   require-pickaxe-power: 20
+#   exp-drop-amount: '5-10'
+#   drops:
+#     auto-inventory: false
+#     natural-drop: false         # Tidak drop bawaan minecraft
+#   custom-drops:
+#     diamond_shard:
+#       chance: 100.0
+#       amount: '1-3'
+#       material: DIAMOND
+#       name: '&b&lBermuda Diamond'
+#       lore:
+#         - '&7Mined from deep in the earth.'
+#   mmocore-exp:
+#     mining: 25
+#   auraskills-xp:
+#     mining: 20
+#   sounds:
+#     break-sound: BLOCK_AMETHYST_CLUSTER_BREAK
+#     regen-sound: BLOCK_BEACON_POWER_SELECT
+
+# ─────────────────────────────────────────────────────────────────────────── #
+# EXAMPLE 3: Health Block dengan MMOItems Tool Requirement                    #
+#            Hanya bisa dipecah dengan tool MMOItems tertentu.                 #
+# ─────────────────────────────────────────────────────────────────────────── #
+LAPIS_ORE:
+  replaced-block: STONE
+  regen-delay: 15
+  block-health: 100
+  tools-required:
+    - mmoitems:PICKAXE:MYTHIC_PICKAXE
+    - mmoitems:PICKAXE:LEGENDARY_PICKAXE
+    - NETHERITE_PICKAXE
+  drops:
+    auto-inventory: true       # Auto-inventory untuk drops
+    natural-drop: false
+  custom-drops:
+    lapis_dust:
+      chance: 100.0
+      amount: '2-5'
+      material: LAPIS_LAZULI
+      name: '&9&lLapis Dust'
+  exp-drop-amount: '3-6'
+
+# ─────────────────────────────────────────────────────────────────────────── #
+# EXAMPLE 4: Health Block dengan Region Restriction                           #
+#            Block ini hanya regen di region tertentu.                         #
+# ─────────────────────────────────────────────────────────────────────────── #
+# ANCIENT_DEBRIS:
+#   replaced-block: NETHERRACK
+#   regen-delay: 45
+#   block-health: 200            # Sangat tahan lama
+#   require-pickaxe-power: 40
+#   regions:
+#     - mining_zone_nether       # Hanya regen di region ini
+#   exp-drop-amount: '10-20'
+#   drops:
+#     auto-inventory: false
+#     natural-drop: false
+#   custom-drops:
+#     netherite_scrap:
+#       chance: 100.0
+#       amount: '1-2'
+#       material: NETHERITE_SCRAP
+#       name: '&f&lNetherite Scrap Fragment'
+#       lore:
+#         - '&7Rare material from the Nether'
+#   sounds:
+#     break-sound: ENTITY_WITHER_DEATH
+#     regen-sound: BLOCK_NETHER_ORE_BREAK
+#   particles:
+#     break-particle: ASH
+#     regen-particle: SOUL_FIRE_FLAME
+
+# ─────────────────────────────────────────────────────────────────────────── #
+# EXAMPLE 5: Nexo Health Block (Health Mode)                                  #
+#            Custom block dari Nexo dengan health-based mining.                #
+# ─────────────────────────────────────────────────────────────────────────── #
+# 'nexo:celestial_ore':
+#   replaced-block: STONE
+#   regen-delay: 60
+#   block-health: 250            # Sangat tangguh
+#   require-pickaxe-power: 50
+#   regions:
+#     - celestial_mining_zone
+#   exp-drop-amount: '15-25'
+#   drops:
+#     auto-inventory: true
+#     natural-drop: false
+#   custom-drops:
+#     celestial_gem:
+#       chance: 100.0
+#       amount: '1'
+#       material: 'nexo:celestial_gem'
+#       name: '&d&lCelestial Gem'
+#   regen-blocks:
+#     'nexo:celestial_ore':
+#       chance: 80.0
+#     'nexo:celestial_stone':
+#       chance: 20.0
+#   mmocore-exp:
+#     mining: 40
+#   auraskills-xp:
+#     mining: 35
+#   sounds:
+#     break-sound: BLOCK_AMETHYST_CLUSTER_BREAK
+#     regen-sound: ENTITY_LIGHTNING_BOLT_THUNDER
+
+# ─────────────────────────────────────────────────────────────────────────── #
+# MODE PROGRESSIVE REGEN (HYPIXEL STYLE)                                      #
+# Blok berganti tahap demi tahap seperti di Hypixel Skyblock.                 #
+# Contoh: STONE dihancurkan -> COBBLESTONE -> dihancurkan -> BEDROCK          #
+# Kemudian dari BEDROCK akan regen kembali menjadi STONE.                     #
+# ─────────────────────────────────────────────────────────────────────────── #
+# STONE:
+#   replaced-block: COBBLESTONE
+#   regen-delay: -1 # Delay -1 berarti tidak akan regen otomatis, menunggu ditambang lagi
+#   drops:
+#     auto-inventory: false
+#     natural-drop: false
+#   custom-drops:
+#     cobble_drop:
+#       chance: 100.0
+#       amount: '1'
+#       material: COBBLESTONE
+#
+# COBBLESTONE:
+#   replaced-block: BEDROCK
+#   regen-delay: 5 # Akan regen kembali ke STONE dalam 5 detik
+#   regen-blocks:
+#     STONE:
+#       chance: 100.0
+#   drops:
+#     auto-inventory: false
+#     natural-drop: false
+#   custom-drops:
+#     stone_drop:
+#       chance: 100.0
+#       amount: '1'
+#       material: STONE
+
 # ─────────────────────────────────────────────────────────────────────────── #
 # 1. BASIC VANILLA ORE (COAL_ORE)                                                                      #
 #    - Simple regeneration with natural drop enabled.                                                  #

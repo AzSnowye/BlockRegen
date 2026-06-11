@@ -1,0 +1,55 @@
+deepslate_floor6:
+  Block: DEEPSLATE
+  replaced-block: COBBLED_DEEPSLATE
+  regen-delay: 30
+  require-pickaxe-power: 15
+  regions:
+    - caves_floor6
+  regen-blocks:
+    DEEPSLATE:
+      chance: 70.0
+    DIAMOND_ORE:
+      chance: 30.0
+  auraskills-xp:
+    mining: 0.2
+
+
+cobbled_deepslate_floor6:
+  Block: COBBLED_DEEPSLATE
+  replaced-block: BEDROCK
+  regen-delay: 5
+  regions:
+    - caves_floor6
+  regen-blocks:
+    DEEPSLATE:
+      chance: 70.0
+    DIAMOND_ORE:
+      chance: 30.0
+  custom-drops:
+    DEEPSLATE_drop:
+      chance: 100.0
+      amount: '1'
+      material: DEEPSLATE
+  auraskills-xp:
+    mining: 0.4
+    
+diamond_floor6:
+  Block: DEEPSLATE_DIAMOND_ORE
+  replaced-block: DEEPSLATE
+  regions:
+    - caves_floor6
+  regen-delay: 30
+  require-pickaxe-power: 20
+  exp-drop-amount: '1-2'
+  auto-pickup-exp: true
+  regen-blocks:
+    DEEPSLATE:
+      chance: 70.0
+    DEEPSLATE_DIAMOND_ORE:
+      chance: 30.0
+  fortune:
+    enabled: true
+    multiplier: 1.5
+  auraskills-xp:
+    mining: 47.3
+

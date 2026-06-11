@@ -1,0 +1,55 @@
+stone_floor5:
+  Block: STONE
+  replaced-block: COBBLESTONE
+  regen-delay: 30
+  require-pickaxe-power: 3
+  regions:
+    - caves_floor5
+  regen-blocks:
+    STONE:
+      chance: 60.0
+    GOLD_ORE:
+      chance: 40.0
+  auraskills-xp:
+    mining: 0.2
+
+
+cobblestone_floor5:
+  Block: COBBLESTONE
+  replaced-block: BEDROCK
+  regen-delay: 5
+  regions:
+    - caves_floor5
+  regen-blocks:
+    STONE:
+      chance: 60.0
+    GOLD_ORE:
+      chance: 40.0
+  custom-drops:
+    stone_drop:
+      chance: 100.0
+      amount: '1'
+      material: STONE
+  auraskills-xp:
+    mining: 0.2
+    
+redstone_floor5:
+  Block: REDSTONE_ORE
+  replaced-block: STONE
+  regions:
+    - caves_floor5
+  regen-delay: 30
+  require-pickaxe-power: 20
+  exp-drop-amount: '1-2'
+  auto-pickup-exp: true
+  regen-blocks:
+    STONE:
+      chance: 70.0
+    REDSTONE_ORE:
+      chance: 30.0
+  fortune:
+    enabled: true
+    multiplier: 1.5
+  auraskills-xp:
+    mining: 100.0
+
