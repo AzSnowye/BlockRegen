@@ -60,6 +60,11 @@ public final class BreakDurationHologramUtil {
         // Baris bawah: health bar batu
         String bottomText = HealthBarUtil.buildWithPercent(progress, BAR_LENGTH);
 
+        if (BlockRegen.fancyHologramsEnabled) {
+            FancyHologramsHelper.createOrUpdateDurationHologram(player, hologramLocation, topText, bottomText);
+            return;
+        }
+
         HologramPair hologramPair = ACTIVE_HOLOGRAMS.get(player.getUniqueId());
 
         if (hologramPair == null || !hologramPair.isValid()) {
@@ -94,6 +99,13 @@ public final class BreakDurationHologramUtil {
         if (player == null) {
             return;
         }
+        if (BlockRegen.fancyHologramsEnabled) {
+            try {
+                FancyHologramsHelper.removeDurationHologram(player);
+            } catch (Throwable t) {
+                // Ignore soft-depend load errors
+            }
+        }
         HologramPair hologramPair = ACTIVE_HOLOGRAMS.remove(player.getUniqueId());
         if (hologramPair != null) {
             hologramPair.remove();
@@ -101,6 +113,13 @@ public final class BreakDurationHologramUtil {
     }
 
     public static void removeAll() {
+        if (BlockRegen.fancyHologramsEnabled) {
+            try {
+                FancyHologramsHelper.removeAllDurationHolograms();
+            } catch (Throwable t) {
+                // Ignore soft-depend load errors
+            }
+        }
         for (HologramPair hologramPair : ACTIVE_HOLOGRAMS.values()) {
             if (hologramPair != null) {
                 hologramPair.remove();
@@ -118,6 +137,7 @@ public final class BreakDurationHologramUtil {
         armorStand.setCustomNameVisible(true);
         armorStand.setInvulnerable(true);
         armorStand.setSilent(true);
+        armorStand.setPersistent(false);
         return armorStand;
     }
 

@@ -3,19 +3,14 @@ package me.allync.blockregen.util;
 import me.allync.blockregen.BlockRegen;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Hologram per-blok untuk mode health.
- * Hologram float di atas blok dan TERLIHAT oleh semua pemain di sekitar.
- * Auto-remove setelah beberapa detik tidak ada serangan.
+ * Hologram per-blok untuk mode health menggunakan FancyHolograms.
+ * Hanya support FancyHolograms agar tidak ada armor stand yang stuck di world.
  */
 public final class BlockHealthHologramUtil {
 
@@ -23,8 +18,8 @@ public final class BlockHealthHologramUtil {
     /** Delay auto-remove hologram setelah tidak ada hit (dalam ticks, default 60 = 3s) */
     private static final long AUTO_REMOVE_DELAY_TICKS = 60L;
 
-    /** locationKey → entry hologram */
-    private static final Map<String, HologramEntry> BLOCK_HOLOGRAMS = new HashMap<>();
+    /** locationKey → removal task */
+    private static final Map<String, BukkitTask> REMOVAL_TASKS = new HashMap<>();
 
     private BlockHealthHologramUtil() {}
 
@@ -38,6 +33,9 @@ public final class BlockHealthHologramUtil {
      */
     public static void update(Location blockLocation, double currentHp, double maxHp, BlockRegen plugin) {
         if (blockLocation == null || plugin == null) return;
+        if (!plugin.getConfigManager().blockHealthHologramEnabled) return;
+        if (!BlockRegen.fancyHologramsEnabled) return;
+
         World world = blockLocation.getWorld();
         if (world == null) return;
 
@@ -50,25 +48,8 @@ public final class BlockHealthHologramUtil {
         // Baris bawah: health bar
         String bottomText = HealthBarUtil.build(progress, BAR_LENGTH);
 
-        Location topLoc = blockLocation.clone().add(0.5, 1.7, 0.5);
-        Location botLoc = blockLocation.clone().add(0.5, 1.45, 0.5);
-
-        HologramEntry entry = BLOCK_HOLOGRAMS.get(key);
-        if (entry == null || !entry.isValid()) {
-            if (entry != null) entry.removeStands();
-            ArmorStand top = spawnLine(world, topLoc);
-            ArmorStand bot = spawnLine(world, botLoc);
-            entry = new HologramEntry(top, bot);
-            BLOCK_HOLOGRAMS.put(key, entry);
-        } else {
-            entry.top.teleport(topLoc);
-            entry.bot.teleport(botLoc);
-        }
-
-        entry.top.setCustomName(topText);
-        entry.bot.setCustomName(bottomText);
-
-        // Jadwalkan auto-remove (reset setiap update)
+        Location fancyLoc = blockLocation.clone().add(0.5, 1.55, 0.5);
+        FancyHologramsHelper.createOrUpdateHealthHologram(fancyLoc, topText, bottomText);
         scheduleRemoval(key, blockLocation, plugin);
     }
 
@@ -77,47 +58,57 @@ public final class BlockHealthHologramUtil {
      */
     public static void remove(Location blockLocation) {
         if (blockLocation == null) return;
+        if (!BlockRegen.fancyHologramsEnabled) return;
+
+        try {
+            FancyHologramsHelper.removeHealthHologram(blockLocation.clone().add(0.5, 1.55, 0.5));
+        } catch (Throwable t) {
+            // Ignore soft-depend load errors
+        }
+
         String key = key(blockLocation);
-        HologramEntry entry = BLOCK_HOLOGRAMS.remove(key);
-        if (entry != null) {
-            if (entry.removalTask != null) entry.removalTask.cancel();
-            entry.removeStands();
+        BukkitTask task = REMOVAL_TASKS.remove(key);
+        if (task != null) {
+            try { task.cancel(); } catch (Exception ignored) {}
         }
     }
 
     /** Hapus semua hologram (plugin disable). */
     public static void removeAll() {
-        for (HologramEntry entry : BLOCK_HOLOGRAMS.values()) {
-            if (entry.removalTask != null) try { entry.removalTask.cancel(); } catch (Exception ignored) {}
-            entry.removeStands();
-        }
-        BLOCK_HOLOGRAMS.clear();
-    }
+        if (!BlockRegen.fancyHologramsEnabled) return;
 
-    // ─────────────────────────────────────────────────────────────
+        try {
+            FancyHologramsHelper.removeAllHealthHolograms();
+        } catch (Throwable t) {
+            // Ignore soft-depend load errors
+        }
+
+        for (BukkitTask task : REMOVAL_TASKS.values()) {
+            if (task != null) {
+                try { task.cancel(); } catch (Exception ignored) {}
+            }
+        }
+        REMOVAL_TASKS.clear();
+    }
 
     private static void scheduleRemoval(String key, Location loc, BlockRegen plugin) {
-        HologramEntry entry = BLOCK_HOLOGRAMS.get(key);
-        if (entry == null) return;
-        if (entry.removalTask != null) {
-            try { entry.removalTask.cancel(); } catch (Exception ignored) {}
+        BukkitTask existing = REMOVAL_TASKS.remove(key);
+        if (existing != null) {
+            try { existing.cancel(); } catch (Exception ignored) {}
         }
-        entry.removalTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            HologramEntry e = BLOCK_HOLOGRAMS.remove(key);
-            if (e != null) e.removeStands();
-        }, AUTO_REMOVE_DELAY_TICKS);
-    }
 
-    private static ArmorStand spawnLine(World world, Location location) {
-        ArmorStand as = (ArmorStand) world.spawnEntity(location, EntityType.ARMOR_STAND);
-        as.setVisible(false);
-        as.setGravity(false);
-        as.setMarker(true);
-        as.setSmall(true);
-        as.setCustomNameVisible(true);
-        as.setInvulnerable(true);
-        as.setSilent(true);
-        return as;
+        BukkitTask removalTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (BlockRegen.fancyHologramsEnabled) {
+                try {
+                    FancyHologramsHelper.removeHealthHologram(loc.clone().add(0.5, 1.55, 0.5));
+                } catch (Throwable t) {
+                    // Ignore soft-depend load errors
+                }
+            }
+            REMOVAL_TASKS.remove(key);
+        }, AUTO_REMOVE_DELAY_TICKS);
+
+        REMOVAL_TASKS.put(key, removalTask);
     }
 
     private static String formatHp(double hp) {
@@ -130,25 +121,5 @@ public final class BlockHealthHologramUtil {
                 + ":" + loc.getBlockX()
                 + ":" + loc.getBlockY()
                 + ":" + loc.getBlockZ();
-    }
-
-    private static final class HologramEntry {
-        ArmorStand top;
-        ArmorStand bot;
-        BukkitTask removalTask;
-
-        HologramEntry(ArmorStand top, ArmorStand bot) {
-            this.top = top;
-            this.bot = bot;
-        }
-
-        boolean isValid() {
-            return top != null && bot != null && top.isValid() && bot.isValid();
-        }
-
-        void removeStands() {
-            if (top != null && top.isValid()) top.remove();
-            if (bot != null && bot.isValid()) bot.remove();
-        }
     }
 }

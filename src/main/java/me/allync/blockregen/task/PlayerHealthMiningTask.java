@@ -89,11 +89,13 @@ public class PlayerHealthMiningTask extends BukkitRunnable {
         }
 
         if (hasToolChanged()) {
+            plugin.getBlockMiningListener().resetProgress(block.getLocation());
             cancelTask();
             return;
         }
 
-        String currentIdentifier = miningManager.getBlockIdentifier(block);
+        java.util.Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
+        String currentIdentifier = miningManager.getBlockIdentifier(block, regionNames);
         if (currentIdentifier == null || !currentIdentifier.equalsIgnoreCase(blockIdentifier)) {
             cancelTask();
             return;
@@ -119,7 +121,13 @@ public class PlayerHealthMiningTask extends BukkitRunnable {
 
     private void dealDamage() {
         ItemStack held = player.getInventory().getItemInMainHand();
-        double power = ItemUtil.getPickaxePower(held);
+        double power = ItemUtil.getPickaxePower(player, held);
+
+        if (power == -1) { // Syarat MMOItems tidak terpenuhi
+            player.sendMessage(plugin.getConfigManager().mmoitemsCantUseMessage);
+            cancelTask();
+            return;
+        }
 
         if (data.requiresTool()) {
             boolean toolOk = false;
@@ -169,6 +177,7 @@ public class PlayerHealthMiningTask extends BukkitRunnable {
         for (Player p : block.getWorld().getPlayers()) {
             p.sendBlockDamage(block.getLocation(), 0.0f);
         }
+        BlockHealthHologramUtil.remove(block.getLocation());
         clearTaskState();
     }
 

@@ -18,7 +18,7 @@ public class ConfigManager {
 
     private final BlockRegen plugin;
     private FileConfiguration config;
-    private final int LATEST_CONFIG_VERSION = 9;
+    private final int LATEST_CONFIG_VERSION = 11;
 
     public String prefix;
     public String reloadMessage;
@@ -26,6 +26,7 @@ public class ConfigManager {
     public String inventoryFullMessage;
     public String wrongToolMessage;
     public String lowPickaxePowerMessage;
+    public String mmoitemsCantUseMessage;
     public String blockBeingMinedMessage;
     public String touchLimitReachedMessage;
     public String regenCountdownMessage;
@@ -77,6 +78,9 @@ public class ConfigManager {
     public int stackableBlocksMaxSize;
     public long blockHealthResetTimeoutMs;
     public double blockHealthDefaultDamage;
+    public boolean blockHealthHologramEnabled;
+    public boolean idleRotateEnabled;
+    public double idleRotateDefaultMinutes;
 
     public ConfigManager(BlockRegen plugin) {
         this.plugin = plugin;
@@ -123,6 +127,7 @@ public class ConfigManager {
         this.inventoryFullMessage = this.prefix + getColoredString("messages.inventory-full");
         this.wrongToolMessage = this.prefix + getColoredString("messages.wrong-tool");
         this.lowPickaxePowerMessage = this.prefix + getColoredString("messages.low-pickaxe-power");
+        this.mmoitemsCantUseMessage = this.prefix + getColoredString("messages.mmoitems-cant-use");
         this.blockBeingMinedMessage = this.prefix + getColoredString("messages.block-being-mined");
         this.touchLimitReachedMessage = this.prefix + getColoredString("messages.touch-limit-reached");
         this.regenCountdownMessage = getColoredString("messages.regen-countdown");
@@ -181,6 +186,9 @@ public class ConfigManager {
         this.stackableBlocksMaxSize = Math.max(1, this.config.getInt("options.stackable-blocks.max-stack-size", 16));
         this.blockHealthResetTimeoutMs = this.config.getLong("options.block-health.reset-timeout-ms", 5000L);
         this.blockHealthDefaultDamage = this.config.getDouble("options.block-health.default-damage", 1.0);
+        this.blockHealthHologramEnabled = this.config.getBoolean("block-health-hologram.enabled", true);
+        this.idleRotateEnabled = this.config.getBoolean("options.idle-rotate.enabled", false);
+        this.idleRotateDefaultMinutes = this.config.getDouble("options.idle-rotate.default-minutes", 5.0);
 
         // Muat pemetaan profil multiplier dunia
         this.worldMultiplierProfiles = new HashMap<>();

@@ -2,14 +2,21 @@
 #                                      BlockRegen Configuration                                      #
 # ---------------------------------------------------------------------------------------------------- #
 # This file defines custom block regeneration behaviors, including drops, sounds, particles,           #
-# tool requirements, and commands. Each top-level key represents a block identifier (e.g., STONE,     #
-# itemsadder:custom_ore, mmoitems:TOOL:PICKAXE, nexo:nexo_ore).                                       #
+# tool requirements, and commands. Each top-level key is now a config ID (e.g., floor1, ore_main,      #
+# boss_rock), while the actual block that appears in-game is defined with `Block:`.                    #
 #                                                                                                      #
-# IMPORTANT: Ensure that the block identifiers match the exact namespaced IDs for custom blocks        #
-# (e.g., from ItemsAdder, Nexo) or the Material enum names for vanilla blocks. For MMOItems, use the  #
-# 'mmoitems:TYPE:ID' format. For Nexo, use the 'nexo:id' format.                                       #
+# IMPORTANT: `Block:` should contain the real block ID or material that exists in the world           #
+# (e.g., STONE, itemsadder:custom_ore, nexo:nexo_ore). For MMOItems drops/tools, keep using           #
+# the 'mmoitems:TYPE:ID' format. For Nexo, use the 'nexo:id' format.                                   #
 # Optional per-block region restriction: use `regions:` list (example at section #13).                 #
 # ---------------------------------------------------------------------------------------------------- #
+
+# Example new format:
+# floor1:
+#   Block: STONE
+#   replaced-block: COBBLESTONE
+#   regen-delay: 10
+#   natural-drop: true
 
 
 # ==================================================================================================== #

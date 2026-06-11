@@ -8,6 +8,7 @@ import me.allync.blockregen.util.NexoUtil;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.World;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Collection;
@@ -73,12 +74,72 @@ public class IdleRotationManager {
         pendingTasks.clear();
     }
 
+    /**
+     * Force-rotate a block now, regardless of idle timeout.
+     *
+     * @param location target block location
+     * @param requiredRegionName optional region name filter (null/blank = no filter)
+     * @param requiredConfiguredIdentifier optional configured id filter (null/blank = no filter)
+     * @return applied configured identifier after rotate, or null if rotate was not possible
+     */
+    public String forceRotateAt(Location location, String requiredRegionName, String requiredConfiguredIdentifier) {
+        if (location == null || location.getWorld() == null) {
+            return null;
+        }
+
+        cancel(location);
+
+        Block block = location.getBlock();
+        Collection<String> regionNames = plugin.getRegionManager().getRegionNamesAt(location);
+
+        if (requiredRegionName != null && !requiredRegionName.isEmpty()) {
+            String normalized = requiredRegionName.toLowerCase(Locale.ROOT);
+            if (!regionNames.contains(normalized)) {
+                return null;
+            }
+        }
+
+        String currentIdentifier = plugin.getMiningManager().getBlockIdentifier(block, regionNames);
+        if (currentIdentifier == null) {
+            return null;
+        }
+
+        if (requiredConfiguredIdentifier != null && !requiredConfiguredIdentifier.isEmpty()
+                && !currentIdentifier.equalsIgnoreCase(requiredConfiguredIdentifier)) {
+            return null;
+        }
+
+        BlockData currentData = plugin.getBlockManager().getBlockData(currentIdentifier, regionNames);
+        if (currentData == null || !currentData.hasRegenVariants()) {
+            return null;
+        }
+
+        String currentWorldIdentifier = getWorldBlockIdentifier(block);
+        String nextIdentifier = selectNextVariant(currentData, currentWorldIdentifier, currentIdentifier);
+        if (nextIdentifier == null || nextIdentifier.isEmpty()) {
+            return null;
+        }
+
+        if (!placeIdentifier(nextIdentifier, location)) {
+            return null;
+        }
+
+        String appliedIdentifier = plugin.getMiningManager().getBlockIdentifier(block, regionNames);
+        if (appliedIdentifier != null && plugin.getBlockManager().isRegenBlockInRegion(appliedIdentifier, regionNames)) {
+            schedule(location, appliedIdentifier);
+            return appliedIdentifier;
+        }
+
+        return null;
+    }
+
     private void rotateIfIdle(Location location, String expectedConfiguredIdentifier) {
         if (location.getWorld() == null) {
             return;
         }
 
-        if (!plugin.getConfigManager().idleRotateEnabled) {
+        double minutes = resolveIdleMinutes(expectedConfiguredIdentifier);
+        if (minutes <= 0.0D) {
             return;
         }
 
@@ -106,7 +167,8 @@ public class IdleRotationManager {
             return;
         }
 
-        String nextIdentifier = selectNextVariant(currentData, currentIdentifier);
+        String currentWorldIdentifier = getWorldBlockIdentifier(block);
+        String nextIdentifier = selectNextVariant(currentData, currentWorldIdentifier, currentIdentifier);
         if (nextIdentifier == null || nextIdentifier.isEmpty()) {
             return;
         }
@@ -121,7 +183,39 @@ public class IdleRotationManager {
         }
     }
 
-    private String selectNextVariant(BlockData data, String currentIdentifier) {
+    /**
+     * Scans all defined regions and schedules idle rotation for all regen blocks found.
+     */
+    public void scheduleAll() {
+        plugin.getLogger().info("[IdleRotation] Scanning regions for existing regen blocks...");
+        int count = 0;
+
+        for (me.allync.blockregen.data.Region region : plugin.getRegionManager().getRegions()) {
+            Location min = region.getMinPoint();
+            Location max = region.getMaxPoint();
+            World world = region.getWorld();
+            if (world == null) continue;
+
+            for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
+                for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
+                    for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
+                        Block block = world.getBlockAt(x, y, z);
+                        Collection<String> regions = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
+                        String identifier = plugin.getMiningManager().getBlockIdentifier(block, regions);
+                        
+                        if (identifier != null && plugin.getBlockManager().isRegenBlockInRegion(identifier, regions)) {
+                            schedule(block.getLocation(), identifier);
+                            count++;
+                        }
+                    }
+                }
+            }
+        }
+
+        plugin.getLogger().info("[IdleRotation] Scheduled " + count + " existing blocks for idle rotation.");
+    }
+
+    private String selectNextVariant(BlockData data, String currentWorldIdentifier, String currentConfiguredIdentifier) {
         List<BlockData.RegenVariant> variants = data.getRegenVariants();
         if (variants == null || variants.isEmpty()) {
             return null;
@@ -129,7 +223,7 @@ public class IdleRotationManager {
 
         double total = 0.0D;
         for (BlockData.RegenVariant variant : variants) {
-            if (variant.getChance() > 0 && !variant.getBlockIdentifier().equalsIgnoreCase(currentIdentifier)) {
+            if (variant.getChance() > 0 && !isCurrentVariant(variant.getBlockIdentifier(), currentWorldIdentifier, currentConfiguredIdentifier)) {
                 total += variant.getChance();
             }
         }
@@ -141,7 +235,7 @@ public class IdleRotationManager {
         double roll = ThreadLocalRandom.current().nextDouble(total);
         double cumulative = 0.0D;
         for (BlockData.RegenVariant variant : variants) {
-            if (variant.getChance() <= 0 || variant.getBlockIdentifier().equalsIgnoreCase(currentIdentifier)) {
+            if (variant.getChance() <= 0 || isCurrentVariant(variant.getBlockIdentifier(), currentWorldIdentifier, currentConfiguredIdentifier)) {
                 continue;
             }
             cumulative += variant.getChance();
@@ -169,6 +263,39 @@ public class IdleRotationManager {
         }
 
         return plugin.getConfigManager().idleRotateDefaultMinutes;
+    }
+
+    private boolean isCurrentVariant(String variantIdentifier, String currentWorldIdentifier, String currentConfiguredIdentifier) {
+        if (variantIdentifier == null) {
+            return false;
+        }
+        if (currentWorldIdentifier != null && variantIdentifier.equalsIgnoreCase(currentWorldIdentifier)) {
+            return true;
+        }
+        return currentConfiguredIdentifier != null && variantIdentifier.equalsIgnoreCase(currentConfiguredIdentifier);
+    }
+
+    private String getWorldBlockIdentifier(Block block) {
+        if (block == null) {
+            return "";
+        }
+
+        String nexoId = BlockRegen.nexoEnabled ? NexoUtil.getNexoBlockId(block) : null;
+        if (nexoId != null && !nexoId.isEmpty()) {
+            return nexoId;
+        }
+
+        if (BlockRegen.itemsAdderEnabled) {
+            try {
+                CustomBlock customBlock = CustomBlock.byAlreadyPlaced(block);
+                if (customBlock != null && customBlock.getNamespacedID() != null && !customBlock.getNamespacedID().isEmpty()) {
+                    return customBlock.getNamespacedID();
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+
+        return block.getType().name();
     }
 
     private boolean placeIdentifier(String blockIdentifier, Location location) {
@@ -249,4 +376,5 @@ public class IdleRotationManager {
         return location.getWorld().getName() + ":" + location.getBlockX() + ":" + location.getBlockY() + ":" + location.getBlockZ();
     }
 }
+
 

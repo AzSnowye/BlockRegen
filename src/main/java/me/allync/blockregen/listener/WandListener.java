@@ -69,14 +69,23 @@ public class WandListener implements Listener {
         event.setCancelled(true);
 
         Action action = event.getAction();
+        // Only accept LEFT click for region wand
+        if (action != Action.LEFT_CLICK_BLOCK) {
+            return;
+        }
+
         Location location = event.getClickedBlock() != null ? event.getClickedBlock().getLocation() : null;
         if (location == null) return;
 
-        if (action == Action.LEFT_CLICK_BLOCK) {
+        // Toggle between pos1 and pos2 on each left-click
+        Location pos1 = regionManager.getPos1(player);
+        if (pos1 == null) {
+            // Set pos1
             regionManager.setPos1(player, location);
             player.sendMessage(plugin.getConfigManager().prefix + plugin.getConfigManager().pos1Message
                     .replace("%location%", formatLocation(location)));
-        } else if (action == Action.RIGHT_CLICK_BLOCK) {
+        } else {
+            // Set pos2
             regionManager.setPos2(player, location);
             player.sendMessage(plugin.getConfigManager().prefix + plugin.getConfigManager().pos2Message
                     .replace("%location%", formatLocation(location)));
@@ -90,14 +99,15 @@ public class WandListener implements Listener {
 
         event.setCancelled(true);
 
-        Location location = event.getClickedBlock() != null ? event.getClickedBlock().getLocation() : null;
-        if (location == null) {
-            player.sendMessage(plugin.getConfigManager().prefix + "§cArahkan ke sebuah block terlebih dahulu.");
+        // Only accept LEFT click for auto-scan wand
+        Action action = event.getAction();
+        if (action != Action.LEFT_CLICK_BLOCK) {
             return;
         }
 
-        Action action = event.getAction();
-        if (action != Action.RIGHT_CLICK_BLOCK && action != Action.LEFT_CLICK_BLOCK) {
+        Location location = event.getClickedBlock() != null ? event.getClickedBlock().getLocation() : null;
+        if (location == null) {
+            player.sendMessage(plugin.getConfigManager().prefix + "§cArahkan ke sebuah block terlebih dahulu.");
             return;
         }
 
@@ -125,7 +135,7 @@ public class WandListener implements Listener {
         if (meta != null) {
             meta.setDisplayName(SCAN_WAND_NAME);
             meta.setLore(Arrays.asList(
-                    "§7Klik kanan/kiri block untuk",
+                    "§7Klik kiri block untuk",
                     "§7mendaftar/menghapus Auto-Scan point."
             ));
             wand.setItemMeta(meta);

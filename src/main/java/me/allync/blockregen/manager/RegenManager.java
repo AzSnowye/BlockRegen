@@ -16,14 +16,17 @@ public class RegenManager {
     private final BlockRegen plugin;
 
     private final Map<Location, BlockState> regeneratingBlocks = new HashMap<>();
+    private final Map<Location, org.bukkit.scheduler.BukkitTask> regenTasks = new HashMap<>();
 
     public RegenManager(BlockRegen plugin) {
         this.plugin = plugin;
     }
 
     public void startRegen(BlockState originalState, int delay, String blockIdentifier, String regenVariantIdentifier) {
-        this.regeneratingBlocks.put(originalState.getLocation(), originalState);
-        (new RegenTask(this.plugin, this, originalState, blockIdentifier, regenVariantIdentifier)).runTaskLater((Plugin)this.plugin, delay * 20L);
+        Location loc = originalState.getLocation();
+        this.regeneratingBlocks.put(loc, originalState);
+        org.bukkit.scheduler.BukkitTask task = (new RegenTask(this.plugin, this, originalState, blockIdentifier, regenVariantIdentifier)).runTaskLater((Plugin)this.plugin, delay * 20L);
+        this.regenTasks.put(loc, task);
     }
 
     public void startRelocationCooldown(BlockState stateDuringCooldown, int delaySeconds, Runnable onFinish) {
@@ -33,12 +36,13 @@ public class RegenManager {
 
         Location location = stateDuringCooldown.getLocation();
         this.regeneratingBlocks.put(location, stateDuringCooldown);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        org.bukkit.scheduler.BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             removeRegenerating(location);
             if (onFinish != null) {
                 onFinish.run();
             }
         }, Math.max(1L, delaySeconds * 20L));
+        this.regenTasks.put(location, task);
     }
 
     public boolean isRegenerating(Location location) {
@@ -46,6 +50,15 @@ public class RegenManager {
     }
 
     public void removeRegenerating(Location location) {
+        this.regeneratingBlocks.remove(location);
+        this.regenTasks.remove(location);
+    }
+
+    public void cancelRegen(Location location) {
+        org.bukkit.scheduler.BukkitTask task = this.regenTasks.remove(location);
+        if (task != null) {
+            task.cancel();
+        }
         this.regeneratingBlocks.remove(location);
     }
 

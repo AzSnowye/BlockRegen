@@ -1,5 +1,6 @@
 package me.allync.blockregen.task;
 
+import dev.lone.itemsadder.api.CustomBlock;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.BlockData;
 import me.allync.blockregen.manager.RegenManager;
@@ -32,6 +33,7 @@ public class RegenTask extends BukkitRunnable {
     }
 
     public void run() {
+        Block block = this.originalState.getLocation().getBlock();
         if (!applyRegenVariant()) {
             this.originalState.update(true, false);
         }
@@ -70,6 +72,12 @@ public class RegenTask extends BukkitRunnable {
             }
         }
         // --- AKHIR MODEL ENGINE ---
+
+        java.util.Set<String> regionNames = this.plugin.getRegionManager().getRegionNamesAt(this.originalState.getLocation());
+        String configuredIdentifier = this.plugin.getMiningManager().getBlockIdentifier(block, regionNames);
+        if (configuredIdentifier != null && this.plugin.getBlockManager().isRegenBlockInRegion(configuredIdentifier, regionNames)) {
+            this.plugin.getIdleRotationManager().schedule(this.originalState.getLocation(), configuredIdentifier);
+        }
     }
 
     private boolean applyRegenVariant() {
@@ -79,13 +87,49 @@ public class RegenTask extends BukkitRunnable {
 
         Block block = this.originalState.getLocation().getBlock();
 
+        BlockData data = this.plugin.getBlockManager().getBlockData(this.regenVariantIdentifier);
+        if (data != null) {
+            String actualBlockId = data.getBlockId();
+            if (actualBlockId != null && !actualBlockId.isEmpty()) {
+                if (actualBlockId.toLowerCase().startsWith("nexo:")) {
+                    return BlockRegen.nexoEnabled && NexoUtil.placeNexoBlock(actualBlockId, this.originalState.getLocation());
+                }
+
+                if (actualBlockId.contains(":")) {
+                    if (!BlockRegen.itemsAdderEnabled) {
+                        return false;
+                    }
+                    try {
+                        return CustomBlock.place(actualBlockId, this.originalState.getLocation()) != null;
+                    } catch (Throwable ignored) {
+                        return false;
+                    }
+                }
+
+                try {
+                    Material material = Material.valueOf(actualBlockId.toUpperCase());
+                    block.setType(material, false);
+                    return true;
+                } catch (IllegalArgumentException ignored) {
+                    return false;
+                }
+            }
+        }
+
         if (regenVariantIdentifier.toLowerCase().startsWith("nexo:")) {
             return BlockRegen.nexoEnabled && NexoUtil.placeNexoBlock(regenVariantIdentifier, this.originalState.getLocation());
         }
 
         if (regenVariantIdentifier.contains(":")) {
-            // Unknown namespaced block provider (not Nexo); fall back to original state.
-            return false;
+            if (!BlockRegen.itemsAdderEnabled) {
+                // Unknown namespaced block provider (not Nexo); fall back to original state.
+                return false;
+            }
+            try {
+                return CustomBlock.place(regenVariantIdentifier, this.originalState.getLocation()) != null;
+            } catch (Throwable ignored) {
+                return false;
+            }
         }
 
         try {

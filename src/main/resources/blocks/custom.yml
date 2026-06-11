@@ -3,7 +3,7 @@
 # ============================================================ #
 # File ini berisi contoh konfigurasi untuk blok custom        #
 # dari Nexo atau ItemsAdder dengan mode health & break-dur.   #
-# Ganti ID blok sesuai plugin kamu.                           #
+# Gunakan ID section sendiri dan isi block aktual via `Block:`#
 # ============================================================ #
 
 # ─── CONTOH: Blok Nexo dengan mode BREAK-DURATION ──────────

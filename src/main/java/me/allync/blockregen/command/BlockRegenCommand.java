@@ -1,11 +1,17 @@
 package me.allync.blockregen.command;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.allync.blockregen.BlockRegen;
 import me.allync.blockregen.data.AutoScanPoint;
+import me.allync.blockregen.data.Region;
 import me.allync.blockregen.listener.WandListener;
 import me.allync.blockregen.manager.AutoScanManager;
 import me.allync.blockregen.util.ModelEngineUtil;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -145,6 +151,10 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
             return handleModelCommand(sender, args);
         }
 
+        if (args[0].equalsIgnoreCase("holo") || args[0].equalsIgnoreCase("hologram")) {
+            return handleHologramCommand(sender, args);
+        }
+
         sender.sendMessage(plugin.getConfigManager().prefix + "Perintah tidak dikenal. Gunakan /br help.");
         return true;
     }
@@ -162,6 +172,7 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
             completions.add("bypass");
             completions.add("block");
             completions.add("scan");
+            completions.add("holo");
             if (BlockRegen.modelEngineEnabled) completions.add("model");
         } else if (args.length == 2) {
             if (args[0].equalsIgnoreCase("save") || args[0].equalsIgnoreCase("remove")) {
@@ -173,6 +184,7 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
                 completions.add("refresh");
                 completions.add("spawn");
                 completions.add("debug");
+                completions.add("rotate");
             } else if (args[0].equalsIgnoreCase("scan")) {
                 completions.add("wand");
                 completions.add("list");
@@ -182,6 +194,8 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
             } else if (args[0].equalsIgnoreCase("model") && BlockRegen.modelEngineEnabled) {
                 completions.add("clean");
                 completions.add("cleanall");
+            } else if (args[0].equalsIgnoreCase("holo") || args[0].equalsIgnoreCase("hologram")) {
+                completions.add("purge");
             }
         } else if (args.length == 3 && args[0].equalsIgnoreCase("scan") && args[1].equalsIgnoreCase("region")) {
             completions.addAll(plugin.getRegionManager().getRegionNames());
@@ -199,9 +213,12 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
             } else if (args[1].equalsIgnoreCase("debug")) {
                 completions.addAll(plugin.getRandomOreManager().getRegionNames());
                 completions.addAll(plugin.getRegionManager().getRegionNames());
+            } else if (args[1].equalsIgnoreCase("rotate")) {
+                completions.addAll(plugin.getRegionManager().getRegionNames());
+                completions.addAll(plugin.getRandomOreManager().getRegionNames());
             }
         } else if (args.length == 4 && args[0].equalsIgnoreCase("block")) {
-            if (args[1].equalsIgnoreCase("set") || args[1].equalsIgnoreCase("remove") || args[1].equalsIgnoreCase("list") || args[1].equalsIgnoreCase("spawn")) {
+            if (args[1].equalsIgnoreCase("set") || args[1].equalsIgnoreCase("remove") || args[1].equalsIgnoreCase("list") || args[1].equalsIgnoreCase("spawn") || args[1].equalsIgnoreCase("rotate")) {
                 completions.addAll(plugin.getBlockManager().getConfiguredIdentifiers());
             }
         } else if (args.length == 5 && args[0].equalsIgnoreCase("block") && args[1].equalsIgnoreCase("spawn")) {
@@ -216,17 +233,11 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean handleRandomBlockCommand(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage(plugin.getConfigManager().prefix + "Perintah ini hanya bisa dijalankan oleh player.");
-            return true;
-        }
-
         if (args.length < 2) {
             sender.sendMessage(plugin.getConfigManager().prefix + "Gunakan: /regen block <set|remove|list> <region> <id_block>");
             return true;
         }
 
-        Player player = (Player) sender;
         String action = args[1].toLowerCase(Locale.ROOT);
 
         if (action.equals("refresh")) {
@@ -239,6 +250,35 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
             }
             return true;
         }
+
+        if (action.equals("rotate")) {
+            if (args.length < 3) {
+                sender.sendMessage(plugin.getConfigManager().prefix + "Gunakan: /regen block rotate <region> [id_block]");
+                return true;
+            }
+
+            String regionName = args[2];
+            String requiredId = args.length >= 4 ? args[3] : null;
+            RotateRegionResult result = forceRotateRegion(regionName, requiredId);
+            if (result == null) {
+                sender.sendMessage(plugin.getConfigManager().prefix + "§cRegion §e" + regionName + "§c tidak ditemukan (BlockRegen/WorldGuard).");
+                return true;
+            }
+
+            sender.sendMessage(plugin.getConfigManager().prefix + "§aForce rotate region selesai: §e" + regionName + " §7[" + result.source + "]");
+            sender.sendMessage("  §7Dicek            : §e" + result.checked);
+            sender.sendMessage("  §7Eligible regen   : §e" + result.eligible);
+            sender.sendMessage("  §aBerhasil rotate  : §e" + result.rotated);
+            sender.sendMessage("  §cGagal/skip       : §e" + result.failed);
+            return true;
+        }
+
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(plugin.getConfigManager().prefix + "Perintah ini hanya bisa dijalankan oleh player.");
+            return true;
+        }
+
+        Player player = (Player) sender;
 
         if (action.equals("spawn")) {
             if (args.length < 5) {
@@ -346,6 +386,126 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
 
         sender.sendMessage(plugin.getConfigManager().prefix + "Aksi tidak dikenal. Gunakan set/remove/list.");
         return true;
+    }
+
+    private RotateRegionResult forceRotateRegion(String regionName, String requiredId) {
+        if (regionName == null || regionName.isEmpty()) {
+            return null;
+        }
+
+        Region internalRegion = plugin.getRegionManager().getRegionByName(regionName);
+        if (internalRegion != null) {
+            Location min = internalRegion.getMinPoint();
+            Location max = internalRegion.getMaxPoint();
+            RotateCounts counts = rotateBoundingBox(
+                    internalRegion.getWorld(),
+                    min.getBlockX(), min.getBlockY(), min.getBlockZ(),
+                    max.getBlockX(), max.getBlockY(), max.getBlockZ(),
+                    regionName,
+                    requiredId
+            );
+            return new RotateRegionResult("BlockRegen", counts.checked, counts.eligible, counts.rotated, counts.failed);
+        }
+
+        if (!plugin.getConfigManager().worldGuardEnabled || plugin.getWorldGuardPlugin() == null) {
+            return null;
+        }
+
+        String lowerRegion = regionName.toLowerCase(Locale.ROOT);
+        for (World world : org.bukkit.Bukkit.getWorlds()) {
+            try {
+                com.sk89q.worldguard.protection.managers.RegionManager wgRegionManager =
+                        WorldGuard.getInstance().getPlatform().getRegionContainer().get(BukkitAdapter.adapt(world));
+                if (wgRegionManager == null) {
+                    continue;
+                }
+
+                ProtectedRegion protectedRegion = wgRegionManager.getRegion(lowerRegion);
+                if (protectedRegion == null) {
+                    continue;
+                }
+
+                BlockVector3 min = protectedRegion.getMinimumPoint();
+                BlockVector3 max = protectedRegion.getMaximumPoint();
+                RotateCounts counts = rotateBoundingBox(
+                        world,
+                        min.x(), min.y(), min.z(),
+                        max.x(), max.y(), max.z(),
+                        lowerRegion,
+                        requiredId
+                );
+                return new RotateRegionResult("WorldGuard", counts.checked, counts.eligible, counts.rotated, counts.failed);
+            } catch (Exception ignored) {
+            }
+        }
+
+        return null;
+    }
+
+    private RotateCounts rotateBoundingBox(World world,
+                                           int minX, int minY, int minZ,
+                                           int maxX, int maxY, int maxZ,
+                                           String regionName,
+                                           String requiredId) {
+        RotateCounts counts = new RotateCounts();
+        String normalizedRegion = regionName.toLowerCase(Locale.ROOT);
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    counts.checked++;
+
+                    Block block = world.getBlockAt(x, y, z);
+                    Location location = block.getLocation();
+                    java.util.Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(location);
+                    if (!regionNames.contains(normalizedRegion)) {
+                        continue;
+                    }
+
+                    String currentIdentifier = plugin.getMiningManager().getBlockIdentifier(block, regionNames);
+                    if (currentIdentifier == null || !plugin.getBlockManager().isRegenBlockInRegion(currentIdentifier, regionNames)) {
+                        continue;
+                    }
+
+                    if (requiredId != null && !requiredId.isEmpty() && !currentIdentifier.equalsIgnoreCase(requiredId)) {
+                        continue;
+                    }
+
+                    counts.eligible++;
+                    String rotatedTo = plugin.getIdleRotationManager().forceRotateAt(location, normalizedRegion, requiredId);
+                    if (rotatedTo != null && !rotatedTo.equalsIgnoreCase(currentIdentifier)) {
+                        counts.rotated++;
+                    } else {
+                        counts.failed++;
+                    }
+                }
+            }
+        }
+
+        return counts;
+    }
+
+    private static final class RotateCounts {
+        private int checked;
+        private int eligible;
+        private int rotated;
+        private int failed;
+    }
+
+    private static final class RotateRegionResult {
+        private final String source;
+        private final int checked;
+        private final int eligible;
+        private final int rotated;
+        private final int failed;
+
+        private RotateRegionResult(String source, int checked, int eligible, int rotated, int failed) {
+            this.source = source;
+            this.checked = checked;
+            this.eligible = eligible;
+            this.rotated = rotated;
+            this.failed = failed;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -532,6 +692,73 @@ public class BlockRegenCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("  §e/br model cleanall §7- Hapus SEMUA model aktif di dunia (emergency cleanup)");
             }
         }
+
+        return true;
+    }
+
+    private boolean handleHologramCommand(CommandSender sender, String[] args) {
+        String sub = args.length >= 2 ? args[1].toLowerCase() : "help";
+
+        if (!sub.equals("purge")) {
+            sender.sendMessage(plugin.getConfigManager().prefix + "§6/br holo §7<purge>");
+            sender.sendMessage("  §e/br holo purge    §7- Hapus semua hologram & armor stand block health yang stuck");
+            return true;
+        }
+
+        // Hapus FancyHolograms
+        int fhRemoved = 0;
+        if (BlockRegen.fancyHologramsEnabled) {
+            try {
+                de.oliver.fancyholograms.api.HologramManager manager = de.oliver.fancyholograms.api.FancyHologramsPlugin.get().getHologramManager();
+                java.util.List<de.oliver.fancyholograms.api.hologram.Hologram> toRemove = new java.util.ArrayList<>();
+                for (de.oliver.fancyholograms.api.hologram.Hologram holo : manager.getHolograms()) {
+                    String name = holo.getData().getName();
+                    if (name.startsWith("blockregen_health_") || name.startsWith("blockregen_duration_")) {
+                        toRemove.add(holo);
+                    }
+                }
+                for (de.oliver.fancyholograms.api.hologram.Hologram holo : toRemove) {
+                    manager.removeHologram(holo);
+                    fhRemoved++;
+                }
+            } catch (Throwable t) {
+                sender.sendMessage(plugin.getConfigManager().prefix + "§cError membersihkan FancyHolograms: " + t.getMessage());
+            }
+        }
+
+        // Hapus ArmorStand di world sender (atau semua world jika console)
+        int asRemoved = 0;
+        java.util.List<org.bukkit.World> worlds = new java.util.ArrayList<>();
+        if (sender instanceof Player player) {
+            worlds.add(player.getWorld());
+        } else {
+            worlds.addAll(org.bukkit.Bukkit.getWorlds());
+        }
+
+        for (org.bukkit.World world : worlds) {
+            for (org.bukkit.entity.Entity entity : world.getEntitiesByClass(org.bukkit.entity.ArmorStand.class)) {
+                org.bukkit.entity.ArmorStand as = (org.bukkit.entity.ArmorStand) entity;
+                if (!as.isVisible() && as.isMarker()) {
+                    String customName = as.getCustomName();
+                    if (customName != null) {
+                        boolean match = customName.contains("❤")
+                                || customName.contains("⛏")
+                                || customName.contains("█")
+                                || customName.contains("Menambang");
+                        if (match) {
+                            as.remove();
+                            asRemoved++;
+                        }
+                    }
+                }
+            }
+        }
+
+        sender.sendMessage(plugin.getConfigManager().prefix + "§aPembersihan selesai!");
+        if (BlockRegen.fancyHologramsEnabled) {
+            sender.sendMessage("  §7FancyHolograms terhapus : §e" + fhRemoved);
+        }
+        sender.sendMessage("  §7ArmorStand terhapus     : §e" + asRemoved);
 
         return true;
     }

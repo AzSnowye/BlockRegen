@@ -12,6 +12,8 @@ import java.util.Set;
 
 public class BlockData {
 
+    private final String configuredId;
+    private final String blockId;
     private final Material replacedBlock;
     private final int regenDelay;
     private final Set<String> allowedRegions;
@@ -35,11 +37,16 @@ public class BlockData {
     // --- BARU ---
     private final double breakDuration;
     private final boolean fixedDuration;
+    private final boolean denyDrops;
     // --- AKHIR BARU ---
 
     // --- AUTO-SCAN ---
     private final double autoScanActiveChance; // -1 = use global default from config
     // --- AKHIR AUTO-SCAN ---
+
+    // --- IDLE ROTATION ---
+    private final double idleRotateMinutes; // <= 0 = use global/default disabled
+    // --- AKHIR IDLE ROTATION ---
 
     // --- MMOITEMS POWER ---
     private final double requirePickaxePower;
@@ -58,6 +65,8 @@ public class BlockData {
 
     @SuppressWarnings("unchecked")
     public BlockData(ConfigurationSection section) {
+        this.configuredId = section.getName();
+        this.blockId = firstNonBlank(section, "Block", "block", "block-id");
         this.replacedBlock = Material.valueOf(section.getString("replaced-block", "STONE").toUpperCase());
         this.regenDelay = section.getInt("regen-delay", 5);
         this.allowedRegions = new HashSet<>();
@@ -98,7 +107,7 @@ public class BlockData {
                         }
                     }
                 } catch (Exception e) {
-                    System.err.println("[BlockRegen] Gagal memuat salah satu tool requirement di blok '" + section.getName() + "'. Entri: " + toolObject.toString() + ". Error: " + e.getMessage());
+                    System.err.println("[BlockRegen] Gagal memuat salah satu tool requirement di blok '" + section.getName() + "'. Entri: " + toolObject + ". Error: " + e.getMessage());
                 }
             }
         }
@@ -140,7 +149,7 @@ public class BlockData {
                 if (variantSection != null) {
                     String blockIdentifier = variantSection.getString("block", key);
                     double chance = variantSection.getDouble("chance", 0.0);
-                    if (blockIdentifier != null && !blockIdentifier.isEmpty() && chance > 0.0) {
+                    if (!blockIdentifier.isEmpty() && chance > 0.0) {
                         this.regenVariants.add(new RegenVariant(blockIdentifier, chance));
                     }
                 } else {
@@ -168,7 +177,7 @@ public class BlockData {
         if (section.isSet("exp-drop-amount")) {
             this.expDropAmount = section.getString("exp-drop-amount", "0");
         } else {
-            this.expDropAmount = getVanillaExpDrop(section.getName());
+            this.expDropAmount = getVanillaExpDrop(getBlockId());
         }
 
         this.autoPickupExp = section.getBoolean("auto-pickup-exp", false);
@@ -204,6 +213,7 @@ public class BlockData {
         // --- BARU ---
         this.breakDuration = section.getDouble("break-duration", 0.0);
         this.fixedDuration = section.getBoolean("fixed-duration", false);
+        this.denyDrops = section.getBoolean("deny-drops", false);
         // --- AKHIR BARU ---
 
         // --- AUTO-SCAN ---
@@ -211,6 +221,10 @@ public class BlockData {
                 ? section.getDouble("auto-scan.active-chance", -1.0)
                 : -1.0;
         // --- AKHIR AUTO-SCAN ---
+
+        // --- IDLE ROTATION ---
+        this.idleRotateMinutes = section.getDouble("idle-rotate-minutes", -1.0);
+        // --- AKHIR IDLE ROTATION ---
 
         // --- MMOITEMS POWER ---
         this.requirePickaxePower = section.getDouble("require-pickaxe-power", 0.0);
@@ -283,6 +297,9 @@ public class BlockData {
     }
 
     private String getVanillaExpDrop(String blockName) {
+        if (blockName == null || blockName.isEmpty()) {
+            return "0";
+        }
         switch (blockName.toUpperCase()) {
             case "COAL_ORE": case "DEEPSLATE_COAL_ORE": return "0-2";
             case "LAPIS_ORE": case "DEEPSLATE_LAPIS_ORE": return "2-5";
@@ -310,6 +327,14 @@ public class BlockData {
 
     public Material getReplacedBlock() {
         return replacedBlock;
+    }
+
+    public String getConfiguredId() {
+        return configuredId;
+    }
+
+    public String getBlockId() {
+        return blockId != null && !blockId.trim().isEmpty() ? blockId.trim() : configuredId;
     }
 
     public int getRegenDelay() {
@@ -445,6 +470,10 @@ public class BlockData {
     public boolean hasCustomBreakDuration() {
         return this.breakDuration > 0.0;
     }
+
+    public boolean isDenyDrops() {
+        return denyDrops;
+    }
     // --- AKHIR GETTER BARU ---
 
     // --- GETTER AUTO-SCAN ---
@@ -456,6 +485,16 @@ public class BlockData {
         return autoScanActiveChance;
     }
     // --- AKHIR GETTER AUTO-SCAN ---
+
+    // --- GETTER IDLE ROTATION ---
+    /**
+     * Returns per-block idle rotation timeout in minutes.
+     * <= 0 means use global default (or disabled globally).
+     */
+    public double getIdleRotateMinutes() {
+        return idleRotateMinutes;
+    }
+    // --- AKHIR GETTER IDLE ROTATION ---
 
     // --- GETTER MMOITEMS POWER ---
     public double getRequirePickaxePower() {

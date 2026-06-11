@@ -262,7 +262,7 @@ public class ModelEngineHitListener implements Listener {
         if (realBlock.getType() == Material.AIR) return;
 
         Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(blockLoc);
-        String blockIdentifier = miningManager.getBlockIdentifier(realBlock);
+        String blockIdentifier = miningManager.getBlockIdentifier(realBlock, regionNames);
         BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier, regionNames);
         if (data == null) return;
 
@@ -309,7 +309,12 @@ public class ModelEngineHitListener implements Listener {
 
     private boolean checkTools(Player player, BlockData data, String blockIdentifier, Location blockLoc) {
         double power = data.requiresPickaxePower()
-                ? ItemUtil.getPickaxePower(player.getInventory().getItemInMainHand()) : 0.0;
+                ? ItemUtil.getPickaxePower(player, player.getInventory().getItemInMainHand()) : 0.0;
+
+        if (power == -1) { // Syarat MMOItems tidak terpenuhi
+            player.sendMessage(plugin.getConfigManager().mmoitemsCantUseMessage);
+            return false;
+        }
 
         if (data.requiresTool()) {
             ItemStack item = player.getInventory().getItemInMainHand();

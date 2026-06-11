@@ -49,8 +49,9 @@ public class BlockBreakListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         Block block = event.getBlock();
-        String blockIdentifier = miningManager.getBlockIdentifier(block); // Gunakan helper dari MiningManager
         Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
+        // Get block identifier with region context for accurate floor detection
+        String blockIdentifier = miningManager.getBlockIdentifier(block, regionNames);
 
         debug(player, blockIdentifier, "BlockBreakEvent triggered by " + player.getName());
 
@@ -92,8 +93,16 @@ public class BlockBreakListener implements Listener {
 
         // --- PENGECEKAN BARU: JIKA BLOK INI DIATUR OLEH LISTENER BARU, ABAIKAN EVENT INI ---
         if (data != null && data.hasCustomBreakDuration()) {
-            if (block.hasMetadata("blockbreakevent-ignore") || block.hasMetadata("blockregen-task-break")) {
-                debug(player, blockIdentifier, "Block has custom break duration but metadata allows break. Allowing BlockBreakEvent.");
+            boolean isPluginBreak = false;
+            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+                if (element.getClassName().contains("net.advancedplugins.ae")) {
+                    isPluginBreak = true;
+                    break;
+                }
+            }
+
+            if (block.hasMetadata("blockbreakevent-ignore") || block.hasMetadata("blockregen-task-break") || isPluginBreak) {
+                debug(player, blockIdentifier, "Block has custom break duration but metadata/plugin allows break. Allowing BlockBreakEvent.");
             } else {
                 debug(player, blockIdentifier, "Block has custom break duration. &cIgnoring BlockBreakEvent&7 (handled by BlockMiningListener).");
                 event.setCancelled(true); // Batalkan event untuk mencegah vanilla break jika terjadi lag
@@ -187,11 +196,7 @@ public class BlockBreakListener implements Listener {
             return;
         }
         debug(player, blockIdentifier, "Location is within a supported region. &aContinuing...");
-        if (plugin.getRegenManager().isRegenerating(block.getLocation())) {
-            debug(player, blockIdentifier, "Block is already regenerating. &cCancelling event.");
-            event.setCancelled(true);
-            return;
-        }
+        // isRegenerating check removed to allow progressive mining
 
         // BlockData 'data' sudah didapat di atas
         if (data == null) {
@@ -202,8 +207,14 @@ public class BlockBreakListener implements Listener {
 
         // Hitung pickaxe power jika block punya tool requirement atau power requirement
         double power = (data.requiresPickaxePower() || data.requiresTool())
-                ? ItemUtil.getPickaxePower(player.getInventory().getItemInMainHand())
+                ? ItemUtil.getPickaxePower(player, player.getInventory().getItemInMainHand())
                 : 0.0;
+
+        if (power == -1) { // Syarat MMOItems tidak terpenuhi
+            player.sendMessage(plugin.getConfigManager().mmoitemsCantUseMessage);
+            event.setCancelled(true);
+            return;
+        }
 
         if (data.requiresPickaxePower() || data.requiresTool()) {
             debug(player, blockIdentifier, "&7Pickaxe power terdeteksi: &f" + power

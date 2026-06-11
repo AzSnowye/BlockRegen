@@ -42,6 +42,7 @@ public final class BlockRegen extends JavaPlugin {
     private AutoScanCycleTask autoScanCycleTask;
     private ModelEngineHitListener modelEngineHitListener;
     private BlockHealthManager blockHealthManager;
+    private IdleRotationManager idleRotationManager;
     // Hapus field MiningMonitorTask
     // private MiningMonitorTask miningMonitor;
 
@@ -121,6 +122,7 @@ public final class BlockRegen extends JavaPlugin {
         miningManager = new MiningManager(this); // Inisialisasi MiningManager
         randomOreManager = new RandomOreManager(this);
         blockHealthManager = new BlockHealthManager(this);
+        idleRotationManager = new IdleRotationManager(this);
         // Hapus inisialisasi MiningMonitorTask
         // miningMonitor = new MiningMonitorTask(this);
 
@@ -152,6 +154,7 @@ public final class BlockRegen extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new GUIListener(this), this);
         blockMiningListener = new BlockMiningListener(this);
         getServer().getPluginManager().registerEvents(blockMiningListener, this);
+        getServer().getPluginManager().registerEvents(new BlockPlaceListener(this), this);
         if (nexoEnabled) {
             getServer().getPluginManager().registerEvents(new NexoLoadListener(this), this);
         }
@@ -171,6 +174,11 @@ public final class BlockRegen extends JavaPlugin {
 
         startRandomOreTask();
         startAutoScanTask();
+
+        // Start idle rotation for existing blocks
+        getServer().getScheduler().runTaskLater(this, () -> {
+            idleRotationManager.scheduleAll();
+        }, 40L); // Delay a bit to ensure everything is settled
 
         getLogger().info("BlockRegen has been enabled successfully!");
     }
@@ -194,6 +202,9 @@ public final class BlockRegen extends JavaPlugin {
         if (blockHealthManager != null) {
             blockHealthManager.clear();
         }
+        if (idleRotationManager != null) {
+            idleRotationManager.clear();
+        }
         if (modelEngineHitListener != null) {
             modelEngineHitListener.shutdown();
         }
@@ -211,6 +222,10 @@ public final class BlockRegen extends JavaPlugin {
     }
 
     public void reloadPlugin() {
+        if (idleRotationManager != null) {
+            idleRotationManager.clear();
+        }
+
         configManager.loadConfig();
         multiplierManager.load();
         blockManager.loadBlocks();
@@ -219,6 +234,7 @@ public final class BlockRegen extends JavaPlugin {
         autoScanManager.load();
         startRandomOreTask();
         startAutoScanTask();
+        idleRotationManager.scheduleAll();
 
         nexoEnabled = getServer().getPluginManager().isPluginEnabled("Nexo");
         if (nexoEnabled) {
@@ -350,4 +366,5 @@ public final class BlockRegen extends JavaPlugin {
     public BlockMiningListener getBlockMiningListener() { return blockMiningListener; }
     public ModelEngineHitListener getModelEngineHitListener() { return modelEngineHitListener; }
     public BlockHealthManager getBlockHealthManager() { return blockHealthManager; }
+    public IdleRotationManager getIdleRotationManager() { return idleRotationManager; }
 }

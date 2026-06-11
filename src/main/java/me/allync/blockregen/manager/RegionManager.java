@@ -182,6 +182,10 @@ public class RegionManager {
         return pos2Selections.get(player.getUniqueId());
     }
 
+    public List<Region> getRegions() {
+        return Collections.unmodifiableList(regions);
+    }
+
     public List<String> getRegionNames() {
         List<String> names = new ArrayList<>();
         for (Region region : regions) {

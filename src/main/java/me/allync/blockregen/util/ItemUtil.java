@@ -6,13 +6,16 @@ import net.Indyuce.mmoitems.MMOItems;
 import net.Indyuce.mmoitems.api.Type;
 import net.Indyuce.mmoitems.api.item.mmoitem.LiveMMOItem;
 import net.Indyuce.mmoitems.ItemStats;
+import net.Indyuce.mmoitems.stat.type.ItemStat;
 import net.Indyuce.mmoitems.stat.data.DoubleData;
 import net.Indyuce.mmoitems.stat.data.type.StatData;
 import me.allync.blockregen.data.CustomDrop;
-import org.bukkit.ChatColor;
+import net.Indyuce.mmoitems.api.player.PlayerData;
 import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -107,7 +110,7 @@ public class ItemUtil {
             }
             if (customDrop.hasLore()) {
                 List<String> lore = customDrop.getLore().stream()
-                        .map(line -> me.allync.blockregen.util.ColorUtil.color(line))
+                        .map(me.allync.blockregen.util.ColorUtil::color)
                         .collect(Collectors.toList());
                 meta.setLore(lore);
             }
@@ -145,26 +148,46 @@ public class ItemUtil {
 
     /**
      * Mendapatkan nilai Pickaxe Power dari item MMOItems (melalui MythicLib NBT).
+     * @param player Player yang memegang item.
      * @param item Item yang akan dicek.
-     * @return Nilai Pickaxe Power, atau 0.0 jika tidak ada atau MMOItems tidak aktif.
+     * @return Nilai Pickaxe Power, atau -1 jika tidak memenuhi syarat, atau 0.0 jika tidak ada.
      */
-    public static double getPickaxePower(ItemStack item) {
-        if (!mmoItemsEnabled || item == null || item.getType() == Material.AIR) {
+    public static double getPickaxePower(Player player, ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) {
             return 0.0;
         }
+
+        // Cek persyaratan MMOItems jika diaktifkan
+        if (mmoItemsEnabled) {
+            // Pastikan NBTItem dapat di-parse sebelum melanjutkan
+            io.lumine.mythic.lib.api.item.NBTItem nbtItem = io.lumine.mythic.lib.api.item.NBTItem.get(item);
+            if (nbtItem.hasType()) { // Hanya cek jika ini adalah MMOItem
+                PlayerData playerData = PlayerData.get(player);
+                if (!playerData.getRPG().canUse(nbtItem, true)) {
+                    return -1; // Indikator bahwa pemain tidak dapat menggunakan item
+                }
+            }
+        }
+
+        // Jika MMOItems tidak diaktifkan, atau jika item bukan MMOItem, lanjutkan ke logika power
+        if (!mmoItemsEnabled) {
+            return fallbackVanillaPower(item);
+        }
+
         try {
             io.lumine.mythic.lib.api.item.NBTItem nbtItem = io.lumine.mythic.lib.api.item.NBTItem.get(item);
 
-            // Pastikan ini benar-benar item MMOItems sebelum membaca stat
+            // Jika bukan MMOItem, gunakan power vanilla
             if (!nbtItem.hasType()) {
-                // Bukan MMOItem, power = 0
-                return 0.0;
+                return fallbackVanillaPower(item);
             }
+
+            double power = 0.0D;
 
             // Metode 1: Cek langsung via NBT tag (paling cepat)
             if (nbtItem.hasTag("MMOITEMS_PICKAXE_POWER")) {
                 double val = nbtItem.getDouble("MMOITEMS_PICKAXE_POWER");
-                return val;
+                power = Math.max(power, val);
             }
 
             // Metode 2: Fallback ke LiveMMOItem API (lebih lambat, tapi lebih lengkap)
@@ -174,19 +197,89 @@ public class ItemUtil {
                     StatData data = liveItem.getData(ItemStats.PICKAXE_POWER);
                     if (data instanceof DoubleData) {
                         double val = ((DoubleData) data).getValue();
-                        return val;
+                        power = Math.max(power, val);
                     }
                 }
+
+                // Beberapa setup MMOItems memakai alias stat custom untuk mining.
+                power = Math.max(power, readCustomMmoItemsDoubleStat(liveItem, "MINING_EFFICIENCY"));
+                power = Math.max(power, readCustomMmoItemsDoubleStat(liveItem, "MINING_SPEED"));
             } catch (Exception e2) {
-                System.err.println("[BlockRegen] LiveMMOItem fallback gagal untuk power: " + e2.getMessage());
+                // System.err.println("[BlockRegen] LiveMMOItem fallback gagal untuk power: " + e2.getMessage());
             }
 
-            // Item MMOItems tapi tidak punya stat PICKAXE_POWER
-            return 0.0;
+            if (power > 0.0D) {
+                return power;
+            }
+
+            return fallbackVanillaPower(item);
 
         } catch (NoClassDefFoundError | Exception e) {
-            System.err.println("[BlockRegen] Error membaca pickaxe power: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            // System.err.println("[BlockRegen] Error membaca pickaxe power: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
-        return 0.0;
+        return fallbackVanillaPower(item); // Fallback jika ada error
+    }
+
+    private static double readCustomMmoItemsDoubleStat(LiveMMOItem liveItem, String statId) {
+        if (liveItem == null || statId == null || statId.isEmpty()) {
+            return 0.0D;
+        }
+
+        try {
+            ItemStat<?, ?> stat = MMOItems.plugin.getStats().get(statId);
+            if (stat == null || !liveItem.hasData(stat)) {
+                return 0.0D;
+            }
+
+            StatData data = liveItem.getData(stat);
+            if (data instanceof DoubleData doubleData) {
+                return doubleData.getValue();
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return 0.0D;
+    }
+
+    private static double fallbackVanillaPower(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) {
+            return 0.0D;
+        }
+
+        double basePower = 0.0D;
+        
+        if (mmoItemsEnabled) {
+            try {
+                if (MMOItems.plugin != null && MMOItems.plugin.getConfig() != null) {
+                    org.bukkit.configuration.ConfigurationSection section = MMOItems.plugin.getConfig().getConfigurationSection("default-pickaxe-power");
+                    if (section != null) {
+                        basePower = section.getDouble(item.getType().name(), 0.0D);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        
+        if (basePower == 0.0D) {
+            String name = item.getType().name();
+            if (name.endsWith("_PICKAXE")) {
+                if (name.startsWith("WOODEN")) basePower = 5.0D;
+                else if (name.startsWith("STONE")) basePower = 8.0D;
+                else if (name.startsWith("COPPER")) basePower = 12.0D;
+                else if (name.startsWith("GOLDEN")) basePower = 15.0D;
+                else if (name.startsWith("IRON")) basePower = 12.0D;
+                else if (name.startsWith("DIAMOND")) basePower = 18.0D;
+                else if (name.startsWith("NETHERITE")) basePower = 22.0D;
+            }
+        }
+
+        int efficiencyLevel = item.getEnchantmentLevel(Enchantment.EFFICIENCY);
+        if (efficiencyLevel > 0) {
+            // Efisiensi vanilla ditambahkan ke power agar block-health tetap bisa dipakai
+            // di server yang tidak memakai stat MMOItems custom.
+            basePower += efficiencyLevel * 5.0D;
+        }
+
+        return basePower;
     }
 }

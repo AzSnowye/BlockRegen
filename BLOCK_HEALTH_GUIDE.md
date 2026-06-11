@@ -29,10 +29,11 @@ block-health-hologram:
 
 ### 2️⃣ Setup Block dengan Health Mode
 
-Di `blocks.yml`, tambahkan `block-health: <nilai>`:
+Di `blocks.yml`, buat section ID sendiri lalu tambahkan `Block:` dan `block-health:`:
 
 ```yaml
-EMERALD_ORE:
+floor1:
+  Block: EMERALD_ORE
   replaced-block: STONE
   regen-delay: 20
   block-health: 80              # ← HP maksimal block
@@ -53,6 +54,8 @@ EMERALD_ORE:
 
 | Konfigurasi | Tipe | Penjelasan |
 |---|---|---|
+| `ID section` | String | Nama config block, misalnya `floor1` |
+| `Block` | String | Block aktual yang dipakai di dunia |
 | `block-health` | Number | HP maksimal block. Diperlukan untuk enable health mode |
 | `require-pickaxe-power` | Number | Minimum pickaxe power untuk bisa damage block (optional) |
 | `replaced-block` | Material | Block sementara saat lagi regenerate |
@@ -78,7 +81,8 @@ EMERALD_ORE:
 ### ✅ EXAMPLE 1: Basic Health Block
 
 ```yaml
-QUARTZ_ORE:
+floor_quartz:
+  Block: QUARTZ_ORE
   replaced-block: STONE
   regen-delay: 15
   block-health: 50          # 50 HP

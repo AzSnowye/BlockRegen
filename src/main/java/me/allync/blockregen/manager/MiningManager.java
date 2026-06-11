@@ -69,8 +69,10 @@ public class MiningManager {
      * or BlockMiningListener (for custom duration breaks).
      */
     public void processBlockBreak(Player player, Block block, BlockData data, BlockState originalState, String blockIdentifier) {
+        plugin.getIdleRotationManager().cancel(block.getLocation());
+
         if (plugin.getRegenManager().isRegenerating(block.getLocation())) {
-            return;
+            plugin.getRegenManager().cancelRegen(block.getLocation());
         }
 
         // NOTE: Do NOT re-check the block's current identifier here.
@@ -89,7 +91,9 @@ public class MiningManager {
         }
 
         // 1. Handle Drops (Custom & Natural)
-        handleAllDrops(player, block, data, blockIdentifier);
+        if (!data.isDenyDrops()) {
+            handleAllDrops(player, block, data, blockIdentifier);
+        }
 
         // 2. Execute Commands
         executeCommands(player, data);
@@ -99,6 +103,21 @@ public class MiningManager {
         int expToDrop = 0;
         if (expAmountStr != null && !expAmountStr.isEmpty()) {
             expToDrop = parseAmount(expAmountStr);
+        }
+
+        // Check for AdvancedEnchantments Experience
+        if (expToDrop > 0) {
+            try {
+                Class.forName("net.advancedplugins.ae.api.AEAPI");
+                ItemStack tool = player.getInventory().getItemInMainHand();
+                if (net.advancedplugins.ae.api.AEAPI.hasCustomEnchant("experience", tool)) {
+                    int expLevel = net.advancedplugins.ae.api.AEAPI.getEnchantLevel("experience", tool);
+                    if (expLevel > 0) {
+                        // Increase EXP drop based on enchant level (e.g., +100% per level)
+                        expToDrop += (expToDrop * expLevel);
+                    }
+                }
+            } catch (Throwable ignored) {}
         }
 
         if (expToDrop > 0) {
@@ -140,7 +159,7 @@ public class MiningManager {
                 Location brokenLocation = block.getLocation();
                 plugin.getRegenManager().startRelocationCooldown(cooldownState, data.getRegenDelay(),
                         () -> plugin.getRandomOreManager().onPointRegenerated(brokenLocation));
-            } else {
+            } else if (data.getRegenDelay() >= 0) {
                 plugin.getRegenManager().startRegen(originalState, data.getRegenDelay(), blockIdentifier, regenVariantIdentifier);
             }
         }, 1L);
@@ -159,6 +178,22 @@ public class MiningManager {
         double regenMultiplier = 1.0;
         if (plugin.getMultiplierManager().isAnyProfileEnabled()) {
             regenMultiplier = plugin.getPlayerManager().getMultiplierValue(player);
+        }
+
+        // Add AuraSkills Luck Multiplier (Mining, Excavating, Foraging, Farming)
+        if (BlockRegen.auraSkillsEnabled) {
+            try {
+                dev.aurelium.auraskills.api.AuraSkillsApi api = dev.aurelium.auraskills.api.AuraSkillsApi.get();
+                dev.aurelium.auraskills.api.user.SkillsUser user = api.getUser(player.getUniqueId());
+                if (user != null && user.isLoaded()) {
+                    double luck = user.getStatLevel(dev.aurelium.auraskills.api.stat.Stats.LUCK);
+                    
+                    if (luck > 0) {
+                        regenMultiplier += (luck / 100.0);
+                        debug(player, blockIdentifier, "&aAuraSkills Luck applied: &f+" + luck + "% drop multiplier");
+                    }
+                }
+            } catch (Throwable ignored) {}
         }
 
         // Handle Custom Drops
@@ -196,9 +231,13 @@ public class MiningManager {
                     }
                 }
 
-                // Apply regen multiplier
+                // Apply regen multiplier with fractional chance
                 if (regenMultiplier > 1.0) {
-                    amount = (int) Math.round(amount * regenMultiplier);
+                    double exactAmount = amount * regenMultiplier;
+                    amount = (int) exactAmount;
+                    if (ThreadLocalRandom.current().nextDouble() < (exactAmount - amount)) {
+                        amount++;
+                    }
                     debug(player, blockIdentifier,"Applied Regen Multiplier of x" + regenMultiplier + " to natural drop. New amount: " + amount);
                 }
                 if (amount > 0) {
@@ -213,8 +252,15 @@ public class MiningManager {
             return;
         }
 
+        // Check for AE Telepathy
+        boolean hasTelepathy = false;
+        try {
+            Class.forName("net.advancedplugins.ae.api.AEAPI");
+            hasTelepathy = net.advancedplugins.ae.api.AEAPI.hasCustomEnchant("telepathy", tool);
+        } catch (Throwable ignored) {}
+
         // Give items to player
-        if (data.isAutoInventory()) {
+        if (data.isAutoInventory() || hasTelepathy) {
             PlayerInventory inventory = player.getInventory();
             HashMap<Integer, ItemStack> remaining = inventory.addItem(finalDrops.toArray(new ItemStack[0]));
             if (!remaining.isEmpty()) {
@@ -247,7 +293,11 @@ public class MiningManager {
             }
 
             if (regenMultiplier > 1.0) {
-                amount = (int) Math.round(amount * regenMultiplier);
+                double exactAmount = amount * regenMultiplier;
+                amount = (int) exactAmount;
+                if (ThreadLocalRandom.current().nextDouble() < (exactAmount - amount)) {
+                    amount++;
+                }
                 debug(player, blockIdentifier, "Applied Regen Multiplier of x" + regenMultiplier + ". New amount: " + amount);
             }
 
@@ -459,6 +509,17 @@ public class MiningManager {
             speedMultiplier += (haste.getAmplifier() + 1) * 0.20D;
         }
 
+        // AdvancedEnchantments Haste support
+        try {
+            Class.forName("net.advancedplugins.ae.api.AEAPI");
+            if (net.advancedplugins.ae.api.AEAPI.hasCustomEnchant("haste", mainHand)) {
+                int aeHasteLevel = net.advancedplugins.ae.api.AEAPI.getEnchantLevel("haste", mainHand);
+                if (aeHasteLevel > 0) {
+                    speedMultiplier += aeHasteLevel * 0.20D;
+                }
+            }
+        } catch (Throwable ignored) {}
+
         PotionEffect fatigue = player.getPotionEffect(PotionEffectType.MINING_FATIGUE);
         if (fatigue != null) {
             double penalty = 1.0D + (fatigue.getAmplifier() + 1) * 0.35D;
@@ -527,24 +588,18 @@ public class MiningManager {
      * Gets the unique identifier for a block (Vanilla material, ItemsAdder ID, or Nexo ID).
      */
     public String getBlockIdentifier(Block block) {
-        // Check Nexo first
-        if (BlockRegen.nexoEnabled) {
-            String nexoId = NexoUtil.getNexoBlockId(block);
-            if (nexoId != null) {
-                return nexoId;
-            }
-        }
+        return plugin.getBlockManager().getConfiguredIdentifier(block);
+    }
 
-        // Check ItemsAdder
-        if (BlockRegen.itemsAdderEnabled) {
-            CustomBlock customBlock = CustomBlock.byAlreadyPlaced(block);
-            if (customBlock != null) {
-                return customBlock.getNamespacedID();
-            }
-        }
-        
-        // Return vanilla material
-        return block.getType().name();
+    /**
+     * Gets the configured identifier for a block with region context.
+     * This is needed to pick the correct floor when multiple floors have the same block type.
+     * @param block The block
+     * @param regionNames The regions the block is in
+     * @return The configured identifier
+     */
+    public String getBlockIdentifier(Block block, Collection<String> regionNames) {
+        return plugin.getBlockManager().getConfiguredIdentifier(block, regionNames);
     }
 
     /**

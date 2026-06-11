@@ -202,6 +202,7 @@ public class PlayerMiningTask extends BukkitRunnable {
 
         if (hasToolChanged()) {
             miningManager.debug(player, blockIdentifier, "&cCancelling mining (Tool changed).");
+            plugin.getBlockMiningListener().resetProgress(block.getLocation());
             cancelTask();
             return;
         }
@@ -265,8 +266,8 @@ public class PlayerMiningTask extends BukkitRunnable {
     private void breakBlock(Block target) {
         // Ambil state sebelum break
         BlockState state = target.getState();
-        String id = miningManager.getBlockIdentifier(target);
-        Set<String> regions = plugin.getRegionManager().getRegionNamesAt(target.getLocation());
+        java.util.Set<String> regions = plugin.getRegionManager().getRegionNamesAt(target.getLocation());
+        String id = miningManager.getBlockIdentifier(target, regions);
         BlockData bd = plugin.getBlockManager().getBlockData(id, regions);
         if (bd == null) bd = data; // fallback ke data blok utama
 
@@ -280,6 +281,10 @@ public class PlayerMiningTask extends BukkitRunnable {
 
     public void cancelTask() {
         clearTaskState(true, true);
+    }
+
+    public Block getBlock() {
+        return block;
     }
 
     private void clearTaskState(boolean resetCrackAnimation, boolean saveProgress) {
@@ -303,6 +308,9 @@ public class PlayerMiningTask extends BukkitRunnable {
         if (player.isOnline() && resetCrackAnimation) {
             sendSafeBlockDamage(0.0f);
         }
+
+        // Reschedule idle rotation now that the block is "untouched"
+        plugin.getIdleRotationManager().schedule(block.getLocation(), blockIdentifier);
     }
 
     private void playWaitingSwingAnimation() {

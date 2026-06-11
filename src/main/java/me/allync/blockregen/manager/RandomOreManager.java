@@ -528,7 +528,8 @@ public class RandomOreManager {
     }
 
     private boolean isRegionBlockAtLocation(RegionEntry regionEntry, Location location) {
-        String identifier = plugin.getMiningManager().getBlockIdentifier(location.getBlock());
+        java.util.Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(location);
+        String identifier = plugin.getMiningManager().getBlockIdentifier(location.getBlock(), regionNames);
         if (identifier == null) {
             return false;
         }
@@ -558,32 +559,59 @@ public class RandomOreManager {
     }
 
     private boolean placeIdentifier(String blockIdentifier, Location location) {
-        boolean placed;
-        if (blockIdentifier.toLowerCase(Locale.ROOT).startsWith("nexo:")) {
-            placed = BlockRegen.nexoEnabled && NexoUtil.placeNexoBlock(blockIdentifier, location);
-        } else if (blockIdentifier.contains(":")) {
-            if (!BlockRegen.itemsAdderEnabled) {
-                placed = false;
-            } else {
-                try {
-                    placed = CustomBlock.place(blockIdentifier, location) != null;
-                } catch (Throwable ignored) {
-                    placed = false;
+        boolean placed = false;
+
+        BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier);
+        if (data != null) {
+            String actualBlockId = data.getBlockId();
+            if (actualBlockId != null && !actualBlockId.isEmpty()) {
+                String lower = actualBlockId.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("nexo:")) {
+                    placed = BlockRegen.nexoEnabled && NexoUtil.placeNexoBlock(actualBlockId, location);
+                } else if (actualBlockId.contains(":")) {
+                    if (BlockRegen.itemsAdderEnabled) {
+                        try {
+                            placed = CustomBlock.place(actualBlockId, location) != null;
+                        } catch (Throwable ignored) {
+                            placed = false;
+                        }
+                    }
+                } else {
+                    Material material = parseMaterial(actualBlockId);
+                    if (material != null) {
+                        location.getBlock().setType(material, false);
+                        placed = true;
+                    }
                 }
             }
-        } else {
-            Material material = parseMaterial(blockIdentifier);
-            if (material == null) {
-                placed = false;
+        }
+
+        if (!placed) {
+            if (blockIdentifier.toLowerCase(Locale.ROOT).startsWith("nexo:")) {
+                placed = BlockRegen.nexoEnabled && NexoUtil.placeNexoBlock(blockIdentifier, location);
+            } else if (blockIdentifier.contains(":")) {
+                if (!BlockRegen.itemsAdderEnabled) {
+                    placed = false;
+                } else {
+                    try {
+                        placed = CustomBlock.place(blockIdentifier, location) != null;
+                    } catch (Throwable ignored) {
+                        placed = false;
+                    }
+                }
             } else {
-                location.getBlock().setType(material, false);
-                placed = true;
+                Material material = parseMaterial(blockIdentifier);
+                if (material == null) {
+                    placed = false;
+                } else {
+                    location.getBlock().setType(material, false);
+                    placed = true;
+                }
             }
         }
 
         // Setelah blok berhasil ditempatkan, spawn model jika dikonfigurasi
         if (placed && BlockRegen.modelEngineEnabled) {
-            BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier);
             if (data != null && data.hasModelEngine()) {
                 ModelEngineUtil.spawnModel(
                         location,

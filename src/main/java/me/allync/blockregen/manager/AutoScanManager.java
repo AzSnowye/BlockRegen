@@ -176,8 +176,9 @@ public class AutoScanManager {
             return -1; // removed
         }
 
-        // Detect what regen block is at this location
-        String blockId = plugin.getMiningManager().getBlockIdentifier(location.getBlock());
+        // Detect what regen block is at this location (region-aware)
+        java.util.Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(location);
+        String blockId = plugin.getMiningManager().getBlockIdentifier(location.getBlock(), regionNames);
         if (!plugin.getBlockManager().isRegenBlock(blockId)) {
             return 0; // not a regen block
         }
@@ -450,7 +451,8 @@ public class AutoScanManager {
                 for (int z = minZ; z <= maxZ; z++) {
                     org.bukkit.block.Block block = world.getBlockAt(x, y, z);
 
-                    String blockId = plugin.getMiningManager().getBlockIdentifier(block);
+                    java.util.Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
+                    String blockId = plugin.getMiningManager().getBlockIdentifier(block, regionNames);
                     if (!plugin.getBlockManager().isRegenBlock(blockId)) continue;
 
                     total++;

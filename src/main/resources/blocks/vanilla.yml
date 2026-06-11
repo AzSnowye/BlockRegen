@@ -2,7 +2,8 @@
 #         BlockRegen - Konfigurasi Blok Vanilla               #
 # ============================================================ #
 # File ini berisi konfigurasi untuk blok-blok vanilla         #
-# Minecraft (STONE, COAL_ORE, IRON_ORE, dll).                 #
+# Minecraft. Gunakan nama section sebagai ID config            #
+# (mis. floor1) dan isi block aktual via `Block:`.             #
 # ============================================================ #
 
 COAL_ORE:

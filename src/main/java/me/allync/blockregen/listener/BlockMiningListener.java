@@ -44,10 +44,8 @@ import java.util.UUID;
 
 /**
  * Listener untuk sistem penambangan kustom dengan durasi.
- *
- * Mekanisme: pemain klik KANAN (RIGHT_CLICK_BLOCK) untuk memulai & melanjutkan penambangan.
- * Setiap klik kanan = satu "hit". Jika berhenti klik > hold-timeout-ms, mining dibatalkan.
- *
+ * Mekanisme: pemain klik KIRI/ KANAN pada blok health untuk memulai & melanjutkan penambangan.
+ * Setiap klik = satu "hit". Jika berhenti klik > hold-timeout-ms, mining dibatalkan.
  * Fitur Stackable: Jika ada blok berdampingan dengan konfigurasi sama, semua ikut dibreak.
  */
 public class BlockMiningListener implements Listener {
@@ -70,13 +68,14 @@ public class BlockMiningListener implements Listener {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // MAIN EVENT: RIGHT-CLICK BLOCK
+    // MAIN EVENT: LEFT/RIGHT-CLICK BLOCK
     // ─────────────────────────────────────────────────────────────────────────
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        // Hanya proses klik KANAN pada blok
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        // Hanya proses klik kiri/kanan pada blok
+        Action action = event.getAction();
+        if (action != Action.LEFT_CLICK_BLOCK && action != Action.RIGHT_CLICK_BLOCK) return;
         Block block = event.getClickedBlock();
         if (block == null) return;
 
@@ -96,17 +95,20 @@ public class BlockMiningListener implements Listener {
             }
         }
 
-        String blockIdentifier = miningManager.getBlockIdentifier(block);
         Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
+        String blockIdentifier = miningManager.getBlockIdentifier(block, regionNames);
 
         // --- 2. Get BlockData & dispatch by mode ---
         BlockData data = plugin.getBlockManager().getBlockData(blockIdentifier, regionNames);
         if (data == null) return; // Bukan regen block
 
-        // Mode health-based: setiap klik kanan mengurangi HP
+        // Ensure idle rotation is scheduled (safety net for blocks not caught by startup scan or place listener)
+        plugin.getIdleRotationManager().schedule(block.getLocation(), blockIdentifier);
+
+        // Mode health-based: setiap klik kiri/kanan mengurangi HP
         if (data.hasBlockHealth()) {
             event.setCancelled(true);
-            handleHealthBlock(player, block, data, blockIdentifier, regionNames);
+            handleHealthBlock(player, block, data, blockIdentifier);
             return;
         }
 
@@ -187,15 +189,17 @@ public class BlockMiningListener implements Listener {
             return;
         }
 
-        if (plugin.getRegenManager().isRegenerating(block.getLocation())) {
-            miningManager.debug(player, blockIdentifier, "Block is already regenerating. &cCancelling.");
-            return;
-        }
+        // isRegenerating check removed to allow progressive mining
 
         // --- 5. Pickaxe Power & Tool Checks ---
         double power = (data.requiresPickaxePower() || data.requiresTool())
-                ? ItemUtil.getPickaxePower(player.getInventory().getItemInMainHand())
+                ? ItemUtil.getPickaxePower(player, player.getInventory().getItemInMainHand())
                 : 0.0;
+
+        if (power == -1) { // Syarat MMOItems tidak terpenuhi
+            player.sendMessage(plugin.getConfigManager().mmoitemsCantUseMessage);
+            return;
+        }
 
         if (data.requiresPickaxePower() || data.requiresTool()) {
             miningManager.debug(player, blockIdentifier, "&7Pickaxe power terdeteksi: &f" + power
@@ -242,7 +246,7 @@ public class BlockMiningListener implements Listener {
         // --- 6. Cari blok stackable berdampingan ---
         List<Block> stackedBlocks;
         if (plugin.getConfigManager().stackableBlocksEnabled) {
-            stackedBlocks = findStackedBlocks(block, blockIdentifier, regionNames);
+            stackedBlocks = findStackedBlocks(block, blockIdentifier);
             miningManager.debug(player, blockIdentifier, "&7Stack: " + stackedBlocks.size() + " blok terdeteksi (termasuk blok utama).");
         } else {
             stackedBlocks = new java.util.ArrayList<>();
@@ -285,11 +289,50 @@ public class BlockMiningListener implements Listener {
 
     /**
      * Proses hit pada blok mode health.
-     * Setiap klik kanan mengurangi HP blok sebesar pickaxe power pemain.
+     * Setiap klik kiri/kanan mengurangi HP blok sebesar pickaxe power pemain.
      */
     private void handleHealthBlock(Player player, Block block, BlockData data,
-                                   String blockIdentifier, Set<String> regionNames) {
+                                   String blockIdentifier) {
         UUID uuid = player.getUniqueId();
+
+        ItemStack itemInHand = player.getInventory().getItemInMainHand();
+        double power = (data.requiresPickaxePower() || data.requiresTool())
+                ? ItemUtil.getPickaxePower(player, itemInHand)
+                : 0.0;
+
+        if (power == -1) { // Syarat MMOItems tidak terpenuhi
+            player.sendMessage(plugin.getConfigManager().mmoitemsCantUseMessage);
+            return;
+        }
+
+        if (data.requiresTool()) {
+            boolean toolMatches = false;
+            for (ToolRequirement requirement : data.getRequiredTools()) {
+                if (requirement.matches(itemInHand)) {
+                    toolMatches = true;
+                    break;
+                }
+            }
+            if (!toolMatches && data.requiresPickaxePower() && power >= data.getRequirePickaxePower()) {
+                toolMatches = true;
+            }
+            if (!toolMatches) {
+                String requiredTools = miningManager.formatRequiredTools(data);
+                player.sendMessage(plugin.getConfigManager().wrongToolMessage.replace("%tool%", requiredTools));
+                SoundUtil.playSoundToPlayer(player, block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
+                return;
+            }
+        }
+
+        if (data.requiresPickaxePower() && power < data.getRequirePickaxePower()) {
+            String reqStr = String.valueOf((int) data.getRequirePickaxePower());
+            String curStr = String.format("%.1f", power);
+            player.sendMessage(plugin.getConfigManager().lowPickaxePowerMessage
+                    .replace("%power%", reqStr)
+                    .replace("%your_power%", curStr));
+            SoundUtil.playSoundToPlayer(player, block.getLocation(), plugin.getConfigManager().wrongToolSound, null);
+            return;
+        }
 
         // Anti auto-clicker: jika pemain sudah punya task health yang berjalan untuk blok ini, abaikan klik ini.
         PlayerHealthMiningTask existingTask = activeHealthTasks.get(uuid);
@@ -321,10 +364,9 @@ public class BlockMiningListener implements Listener {
      *
      * @param origin          Blok asal
      * @param blockIdentifier ID blok yang sedang ditambang
-     * @param regionNames     Region di lokasi asal
      * @return Daftar blok (termasuk origin), maksimal MAX_STACK_SIZE buah
      */
-    private List<Block> findStackedBlocks(Block origin, String blockIdentifier, Set<String> regionNames) {
+    private List<Block> findStackedBlocks(Block origin, String blockIdentifier) {
         int maxSize = plugin.getConfigManager().stackableBlocksMaxSize;
         List<Block> result = new ArrayList<>();
         result.add(origin);
@@ -350,11 +392,11 @@ public class BlockMiningListener implements Listener {
                 if (visited.contains(key)) continue;
                 visited.add(key);
 
-                String neighborId = miningManager.getBlockIdentifier(neighbor);
+                Set<String> neighborRegions = plugin.getRegionManager().getRegionNamesAt(neighbor.getLocation());
+                String neighborId = miningManager.getBlockIdentifier(neighbor, neighborRegions);
                 if (!neighborId.equalsIgnoreCase(blockIdentifier)) continue;
 
                 // Pastikan blok tetangga juga valid sebagai regen block
-                Set<String> neighborRegions = plugin.getRegionManager().getRegionNamesAt(neighbor.getLocation());
                 BlockData neighborData = plugin.getBlockManager().getBlockData(neighborId, neighborRegions);
                 if (neighborData == null) continue;
                 if (plugin.getRegenManager().isRegenerating(neighbor.getLocation())) continue;
@@ -409,12 +451,12 @@ public class BlockMiningListener implements Listener {
 
     @EventHandler
     public void onPlayerItemHeld(org.bukkit.event.player.PlayerItemHeldEvent event) {
-        cancelTaskFor(event.getPlayer().getUniqueId());
+        cancelTaskFor(event.getPlayer().getUniqueId(), true);
     }
 
     @EventHandler
     public void onPlayerDropItem(org.bukkit.event.player.PlayerDropItemEvent event) {
-        cancelTaskFor(event.getPlayer().getUniqueId());
+        cancelTaskFor(event.getPlayer().getUniqueId(), true);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -445,16 +487,32 @@ public class BlockMiningListener implements Listener {
     }
 
     private void cancelTaskFor(UUID uuid) {
+        cancelTaskFor(uuid, false);
+    }
+
+    private void cancelTaskFor(UUID uuid, boolean forceReset) {
         PlayerMiningTask existingTask = activeMiningTasks.get(uuid);
         if (existingTask != null) {
+            if (forceReset) {
+                persistedProgress.remove(MiningTargetKey.from(existingTask.getBlock().getLocation()));
+            }
             existingTask.cancelTask();
         }
         PlayerHealthMiningTask existingHealthTask = activeHealthTasks.get(uuid);
         if (existingHealthTask != null) {
+            if (forceReset) {
+                plugin.getBlockHealthManager().reset(existingHealthTask.getBlock().getLocation());
+            }
             existingHealthTask.cancelTask();
         }
         mineConflictMessageCooldown.remove(uuid);
         playerTouchedBlocks.remove(uuid);
+    }
+
+    public void resetProgress(org.bukkit.Location loc) {
+        MiningTargetKey key = MiningTargetKey.from(loc);
+        persistedProgress.remove(key);
+        plugin.getBlockHealthManager().reset(loc);
     }
 
     private void cleanupExpiredProgress(MiningTargetKey blockKey) {
@@ -537,3 +595,4 @@ public class BlockMiningListener implements Listener {
         mineConflictMessageCooldown.remove(uuid);
     }
 }
+

@@ -8,6 +8,7 @@
 
 ### 🔄 Block Regeneration
 - Broken blocks automatically regenerate after a configurable delay (`regen-delay`).
+- Use a config ID per block section, and define the actual in-world block with `Block:`.
 - Choose the block that temporarily replaces the broken block (`replaced-block`).
 - Support for **weighted random regen variants** — a block can regenerate into a different block type based on configurable chances (e.g., `agate_ore` → `agate_deepslate`).
 
@@ -92,7 +93,7 @@ Placeholder `%player%` is available in all commands. Per-drop commands are also 
 
 ### 🗺️ Region System (Built-in)
 - Define custom **block regions** using a selection wand (default: Blaze Rod).
-- Left-click to set Position 1, right-click to set Position 2.
+- **Left-click to toggle positions**: First left-click sets Position 1, second left-click sets Position 2.
 - Save, list, and delete regions with `/blockregen` commands.
 - Restrict specific block configs to only regenerate inside certain regions via `regions:` list in `blocks.yml`.
 - Block broken outside its defined region will not regenerate (with optional admin notification).
@@ -129,7 +130,7 @@ Placeholder `%player%` is available in all commands. Per-drop commands are also 
 - Dynamically spawn blocks at pre-defined points on a cycle (`interval-seconds`).
 - Configurable **max active** blocks per region.
 - **Strict relocate mode** — recently-broken points cannot immediately respawn, forcing players to move around.
-- Register spawn points with `/regen block set <region> <block_id>`.
+- Register spawn points with `/regen block set <region> <block_id>` (the block ID is the config section name, like `floor1`).
 - Force-refresh or manually spawn blocks with admin commands.
 - Debug mode to preview which points were selected in the last cycle.
 
@@ -196,7 +197,7 @@ Placeholder `%player%` is available in all commands. Per-drop commands are also 
 | File | Description |
 |---|---|
 | `config.yml` | Global settings: sounds, particles, worlds, WorldGuard, messages, mining options |
-| `blocks.yml` | Per-block regeneration rules, drops, tools, sounds, particles, and commands |
+| `blocks.yml` | Per-block regeneration rules, drops, tools, sounds, particles, commands, and config IDs (`Block:` defines the actual block) |
 | `multiplier.yml` | Multiplier GUI layout, upgrade costs, and per-world profiles |
 | `random-ores.yml` | Random ore spawn system settings and registered region points |
 | `regions.yml` | Saved region coordinates |

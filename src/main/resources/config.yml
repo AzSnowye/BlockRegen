@@ -7,7 +7,7 @@
 # ================================================================================= #
 
 # Current version of the configuration file. Do not change this value.
-config-version: 10
+config-version: 11
 
 
 
@@ -53,6 +53,7 @@ worlds:
   # This list is ignored if 'enable-all-worlds' is set to 'true'.
   enabled-worlds:
     - "spawn"
+    - "rpg"
     - "world_prison"
 
   # (NEW SECTION)
@@ -107,6 +108,13 @@ options:
     reset-timeout-ms: 5000
     # Damage default per klik jika pemain tidak punya pickaxe power (vanilla pickaxe).
     default-damage: 1.0
+
+  # Idle Rotate: jika blok ore tidak ditambang dalam beberapa menit,
+  # blok akan di-rotate ke varian regen lain (jika block punya 'regen-blocks').
+  idle-rotate:
+    enabled: false
+    # Timeout default global (menit). Bisa di-override per block dengan 'idle-rotate-minutes'.
+    default-minutes: 5
 
 
 # ================================================================================= #
@@ -187,7 +195,7 @@ particles:
 # All plugin messages are configurable and support color codes using the '&' symbol.
 messages:
   # The prefix that appears before most plugin messages.
-  prefix: "<b><gradient:#41B7FF:#41D5FF>SkyForge</gradient></b> &7» &r"
+  prefix: "<b><gradient:#41B7FF:#41D5FF>SkyForge</gradient></b> » "
 
   # Message sent when the configuration is successfully reloaded.
   reload: "&6Konfigurasi berhasil dimuat ulang."
@@ -204,6 +212,9 @@ messages:
   # Message sent when a player's pickaxe power is too low to break the block.
   # Placeholders: %power%
   low-pickaxe-power: "&cButuh power %power%, tapi power kamu hanya %your_power%."
+
+  # (NEW) Message when player doesn't meet MMOItems requirements (e.g. level).
+  mmoitems-cant-use: "&cKamu belum memenuhi syarat untuk menggunakan item ini."
 
   # Message sent when the block is already being mined by someone else.
   block-being-mined: "&cBlock ini sedang dimining orang lain."
@@ -256,6 +267,7 @@ messages:
     - "&6/regen block remove <region> <id_block> &7- Menghapus titik random ore dari region."
     - "&6/regen block refresh [region|all] &7- Refresh random ore langsung saat itu juga."
     - "&6/regen block spawn <region> <id_block> <jumlah> &7- Spawn paksa block random di region."
+    - "&6/regen block rotate <region> [id_block] &7- Paksa rotate semua regen block di region."
     - "&6/regen block debug <region> &7- Lihat point yang kepilih di cycle random terakhir."
     - "&6/blockregen scan wand &7- Dapatkan wand untuk set auto-scan point."
     - "&6/blockregen scan list &7- Lihat semua titik auto-scan."
@@ -281,3 +293,10 @@ auto-scan:
   
   # Block penutup default jika 'replaced-block' tidak valid
   default-placeholder: "STONE"
+
+# ================================================================================= #
+#                          Block Health Hologram Settings                          #
+# ================================================================================= #
+block-health-hologram:
+  # Show hologram health bar above block while mining dengan block-health mode.
+  enabled: true
