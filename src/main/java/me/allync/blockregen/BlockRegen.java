@@ -2,7 +2,6 @@ package me.allync.blockregen;
 
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import me.allync.blockregen.command.BlockRegenCommand;
-import me.allync.blockregen.command.RegenMultiplierCommand;
 import me.allync.blockregen.listener.*;
 import me.allync.blockregen.manager.*;
 import me.allync.blockregen.task.AutoScanCycleTask;
@@ -33,7 +32,6 @@ public final class BlockRegen extends JavaPlugin {
     private RegenManager regenManager;
     private RegionManager regionManager;
     private PlayerManager playerManager;
-    private MultiplierManager multiplierManager;
     private MiningManager miningManager;
     private RandomOreManager randomOreManager;
     private RandomOreSpawnTask randomOreSpawnTask;
@@ -56,8 +54,8 @@ public final class BlockRegen extends JavaPlugin {
     public static boolean mmocoreEnabled;
     public static boolean auraSkillsEnabled;
     public static boolean fancyHologramsEnabled;
-    public static boolean coinsEngineEnabled;
     public static boolean modelEngineEnabled;
+    public static boolean mcMMOEnabled;
 
     private final Set<UUID> debuggingPlayers = new HashSet<>();
     private final Set<UUID> bypassPlayers = new HashSet<>();
@@ -92,6 +90,10 @@ public final class BlockRegen extends JavaPlugin {
         if (auraSkillsEnabled) {
             getLogger().info("AuraSkills found, integration enabled.");
         }
+        mcMMOEnabled = getServer().getPluginManager().isPluginEnabled("mcMMO");
+        if (mcMMOEnabled) {
+            getLogger().info("mcMMO found, integration enabled.");
+        }
         fancyHologramsEnabled = getServer().getPluginManager().isPluginEnabled("FancyHolograms");
         if (fancyHologramsEnabled) {
             getLogger().info("FancyHolograms found, break-duration hologram integration enabled.");
@@ -104,16 +106,6 @@ public final class BlockRegen extends JavaPlugin {
 
         configManager = new ConfigManager(this);
         configManager.loadConfig();
-
-        multiplierManager = new MultiplierManager(this);
-        multiplierManager.load();
-
-        if (multiplierManager.isAnyProfileEnabled()) {
-            if (!setupEconomy()) {
-                getLogger().info("Vault not found. Some multiplier profiles may not work unless they use CoinsEngine.");
-            }
-            setupCoinsEngine();
-        }
 
         blockManager = new BlockManager(this);
         regenManager = new RegenManager(this);
@@ -151,7 +143,6 @@ public final class BlockRegen extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BlockBreakListener(this), this);
         getServer().getPluginManager().registerEvents(new WandListener(this, regionManager), this);
         getServer().getPluginManager().registerEvents(new PlayerConnectionListener(this), this);
-        getServer().getPluginManager().registerEvents(new GUIListener(this), this);
         blockMiningListener = new BlockMiningListener(this);
         getServer().getPluginManager().registerEvents(blockMiningListener, this);
         getServer().getPluginManager().registerEvents(new BlockPlaceListener(this), this);
@@ -162,6 +153,10 @@ public final class BlockRegen extends JavaPlugin {
             modelEngineHitListener = new ModelEngineHitListener(this);
             getServer().getPluginManager().registerEvents(modelEngineHitListener, this);
         }
+        if (getServer().getPluginManager().isPluginEnabled("AdvancedEnchantments")) {
+            getLogger().info("AdvancedEnchantments found, registering AE listener.");
+            getServer().getPluginManager().registerEvents(new AdvancedEnchantmentListener(this), this);
+        }
 
         // Hapus task monitor
         // miningMonitor.runTaskTimer(this, 0L, 5L);
@@ -170,7 +165,6 @@ public final class BlockRegen extends JavaPlugin {
         BlockRegenCommand blockRegenCommand = new BlockRegenCommand(this);
         getCommand("blockregen").setExecutor(blockRegenCommand);
         getCommand("blockregen").setTabCompleter(blockRegenCommand);
-        getCommand("regenmultiplier").setExecutor(new RegenMultiplierCommand(this));
 
         startRandomOreTask();
         startAutoScanTask();
@@ -222,12 +216,14 @@ public final class BlockRegen extends JavaPlugin {
     }
 
     public void reloadPlugin() {
+        if (blockMiningListener != null) {
+            blockMiningListener.shutdown();
+        }
         if (idleRotationManager != null) {
             idleRotationManager.clear();
         }
 
         configManager.loadConfig();
-        multiplierManager.load();
         blockManager.loadBlocks();
         regionManager.loadRegions();
         randomOreManager.load();
@@ -255,6 +251,10 @@ public final class BlockRegen extends JavaPlugin {
         auraSkillsEnabled = getServer().getPluginManager().isPluginEnabled("AuraSkills");
         if (auraSkillsEnabled) {
             getLogger().info("AuraSkills found, integration enabled.");
+        }
+        mcMMOEnabled = getServer().getPluginManager().isPluginEnabled("mcMMO");
+        if (mcMMOEnabled) {
+            getLogger().info("mcMMO found, integration enabled.");
         }
         fancyHologramsEnabled = getServer().getPluginManager().isPluginEnabled("FancyHolograms");
         if (fancyHologramsEnabled) {
@@ -285,16 +285,6 @@ public final class BlockRegen extends JavaPlugin {
         }
         economy = rsp.getProvider();
         return economy != null;
-    }
-
-    private void setupCoinsEngine() {
-        if (getServer().getPluginManager().getPlugin("CoinsEngine") != null) {
-            coinsEngineEnabled = true;
-            getLogger().info("Successfully hooked into CoinsEngine.");
-        } else {
-            coinsEngineEnabled = false;
-            getLogger().info("CoinsEngine not found, integration disabled.");
-        }
     }
 
     private void startAutoScanTask() {
@@ -357,7 +347,6 @@ public final class BlockRegen extends JavaPlugin {
     public RegenManager getRegenManager() { return regenManager; }
     public RegionManager getRegionManager() { return regionManager; }
     public PlayerManager getPlayerManager() { return playerManager; }
-    public MultiplierManager getMultiplierManager() { return multiplierManager; }
     public MiningManager getMiningManager() { return miningManager; }
     public RandomOreManager getRandomOreManager() { return randomOreManager; }
     public AutoScanManager getAutoScanManager() { return autoScanManager; }

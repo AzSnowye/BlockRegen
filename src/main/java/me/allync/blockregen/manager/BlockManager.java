@@ -183,6 +183,10 @@ public class BlockManager {
         } else if (candidates.size() > 1) {
             // No region context available here — prefer non-region-specific BlockData, then smallest region set, then deterministic fallback
             candidates.sort((a, b) -> {
+                // Prefer higher priority
+                if (a.getPriority() != b.getPriority()) {
+                    return Integer.compare(b.getPriority(), a.getPriority());
+                }
                 // Prefer entries without region restriction
                 if (a.hasRegionRestriction() && !b.hasRegionRestriction()) return 1;
                 if (!a.hasRegionRestriction() && b.hasRegionRestriction()) return -1;
@@ -204,6 +208,10 @@ public class BlockManager {
 
         // Choose best candidate from list without region context
         list.sort((a, b) -> {
+            // Prefer higher priority
+            if (a.getPriority() != b.getPriority()) {
+                return Integer.compare(b.getPriority(), a.getPriority());
+            }
             if (a.hasRegionRestriction() && !b.hasRegionRestriction()) return 1;
             if (!a.hasRegionRestriction() && b.hasRegionRestriction()) return -1;
             int cmp = Integer.compare(a.getAllowedRegions().size(), b.getAllowedRegions().size());
@@ -367,8 +375,14 @@ public class BlockManager {
                 for (String ar : a.getAllowedRegions()) if (ar != null && normalized.contains(ar.toLowerCase(Locale.ROOT))) aMatch++;
                 for (String br : b.getAllowedRegions()) if (br != null && normalized.contains(br.toLowerCase(Locale.ROOT))) bMatch++;
             }
-            // Primary: higher match count
+            // Primary: higher match count (region match is most important)
             if (aMatch != bMatch) return Integer.compare(bMatch, aMatch);
+
+            // Secondary: compare priority
+            if (a.getPriority() != b.getPriority()) {
+                return Integer.compare(b.getPriority(), a.getPriority()); // higher priority first
+            }
+
 
             // If none matched any region, prefer non-restricted entries
             if (aMatch == 0 && bMatch == 0) {

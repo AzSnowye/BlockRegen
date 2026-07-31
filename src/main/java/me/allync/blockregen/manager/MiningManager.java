@@ -10,9 +10,8 @@ import me.allync.blockregen.util.ModelEngineUtil;
 import me.allync.blockregen.util.NexoUtil;
 import me.allync.blockregen.util.ParticleUtil;
 import me.allync.blockregen.util.SoundUtil;
-import dev.aurelium.auraskills.api.AuraSkillsApi;
-import dev.aurelium.auraskills.api.skill.Skills;
-import dev.aurelium.auraskills.api.user.SkillsUser;
+import me.allync.blockregen.util.AuraSkillsHelper;
+import me.allync.blockregen.util.McMMOHelper;
 import net.Indyuce.mmocore.MMOCore;
 import net.Indyuce.mmocore.api.player.PlayerData;
 import net.Indyuce.mmocore.experience.EXPSource;
@@ -140,6 +139,9 @@ public class MiningManager {
         // 4.5 Handle AuraSkills Experience
         handleAuraSkillsExp(player, data, blockIdentifier);
 
+        // 4.6 Handle mcMMO Experience
+        handleMcMMOExp(player, data, blockIdentifier);
+
         // 5. Play Sound & Spawn Particles
         SoundUtil.playSoundToPlayer(player, block.getLocation(), data.getBreakSound(), plugin.getConfigManager().defaultBreakSound);
         if (plugin.getConfigManager().particlesEnabled && plugin.getConfigManager().particlesOnBreak) {
@@ -176,24 +178,14 @@ public class MiningManager {
         int fortuneLevel = tool.getEnchantmentLevel(Enchantment.FORTUNE);
 
         double regenMultiplier = 1.0;
-        if (plugin.getMultiplierManager().isAnyProfileEnabled()) {
-            regenMultiplier = plugin.getPlayerManager().getMultiplierValue(player);
-        }
 
         // Add AuraSkills Luck Multiplier (Mining, Excavating, Foraging, Farming)
         if (BlockRegen.auraSkillsEnabled) {
-            try {
-                dev.aurelium.auraskills.api.AuraSkillsApi api = dev.aurelium.auraskills.api.AuraSkillsApi.get();
-                dev.aurelium.auraskills.api.user.SkillsUser user = api.getUser(player.getUniqueId());
-                if (user != null && user.isLoaded()) {
-                    double luck = user.getStatLevel(dev.aurelium.auraskills.api.stat.Stats.LUCK);
-                    
-                    if (luck > 0) {
-                        regenMultiplier += (luck / 100.0);
-                        debug(player, blockIdentifier, "&aAuraSkills Luck applied: &f+" + luck + "% drop multiplier");
-                    }
-                }
-            } catch (Throwable ignored) {}
+            double luck = AuraSkillsHelper.getLuckLevel(player);
+            if (luck > 0) {
+                regenMultiplier += (luck / 100.0);
+                debug(player, blockIdentifier, "&aAuraSkills Luck applied: &f+" + luck + "% drop multiplier");
+            }
         }
 
         // Handle Custom Drops
@@ -438,28 +430,36 @@ public class MiningManager {
             return;
         }
 
-        AuraSkillsApi api;
-        try {
-            api = AuraSkillsApi.get();
-        } catch (Exception e) {
-            return;
-        }
-
-        SkillsUser user = api.getUser(player.getUniqueId());
-        if (user == null || !user.isLoaded()) {
-            return;
-        }
-
         for (Map.Entry<String, Integer> entry : data.getAuraskillsXp().entrySet()) {
             String skillName = entry.getKey();
             int expAmount = entry.getValue();
 
-            try {
-                Skills skill = Skills.valueOf(skillName.toUpperCase());
-                user.addSkillXp(skill, expAmount);
+            boolean success = AuraSkillsHelper.addXp(player, skillName, expAmount);
+            if (success) {
                 debug(player, blockIdentifier, "&aGave &f" + expAmount + " &aAuraSkills XP to skill &f" + skillName);
-            } catch (IllegalArgumentException ex) {
-                debug(player, blockIdentifier, "&cInvalid AuraSkills skill '&f" + skillName + "&c'.");
+            } else {
+                debug(player, blockIdentifier, "&cInvalid or failed to grant AuraSkills skill '&f" + skillName + "&c'.");
+            }
+        }
+    }
+
+    private void handleMcMMOExp(Player player, BlockData data, String blockIdentifier) {
+        if (!BlockRegen.mcMMOEnabled) {
+            return;
+        }
+        if (!data.hasMcmmoXp()) {
+            return;
+        }
+
+        for (Map.Entry<String, Integer> entry : data.getMcmmoXp().entrySet()) {
+            String skillName = entry.getKey();
+            int expAmount = entry.getValue();
+
+            boolean success = McMMOHelper.addXp(player, skillName, expAmount);
+            if (success) {
+                debug(player, blockIdentifier, "&aGave &f" + expAmount + " &amcMMO XP to skill &f" + skillName);
+            } else {
+                debug(player, blockIdentifier, "&cInvalid or failed to grant mcMMO skill '&f" + skillName + "&c'.");
             }
         }
     }
@@ -531,13 +531,7 @@ public class MiningManager {
             speedMultiplier += mmoItemsMiningBonus;
         }
 
-        // Plugin stat hook: reuse BlockRegen multiplier profile as an extra mining speed factor.
-        if (plugin.getMultiplierManager().isAnyProfileEnabled()) {
-            double profileMultiplier = plugin.getPlayerManager().getMultiplierValue(player);
-            if (profileMultiplier > 1.0D) {
-                speedMultiplier *= profileMultiplier;
-            }
-        }
+
 
         return Math.max(0.1D, Math.min(speedMultiplier, 20.0D));
     }

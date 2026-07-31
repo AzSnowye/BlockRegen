@@ -32,12 +32,14 @@ public class BlockData {
     private final boolean autoPickupExp;
     private final Map<String, Integer> mmocoreExp;
     private final Map<String, Integer> auraskillsXp;
+    private final Map<String, Integer> mcmmoXp;
     private final FortuneData fortuneData; // Diubah dari Map ke single object
 
     // --- BARU ---
     private final double breakDuration;
     private final boolean fixedDuration;
     private final boolean denyDrops;
+    private final boolean allowAdvancedEnchantments;
     // --- AKHIR BARU ---
 
     // --- AUTO-SCAN ---
@@ -62,6 +64,10 @@ public class BlockData {
     private final double modelHeightOffset;
     private final boolean modelHideBlock;
     // --- AKHIR MODEL ENGINE ---
+
+    // --- REGION PRIORITY ---
+    private final int priority;
+    // --- AKHIR REGION PRIORITY ---
 
     @SuppressWarnings("unchecked")
     public BlockData(ConfigurationSection section) {
@@ -200,6 +206,15 @@ public class BlockData {
             }
         }
 
+        this.mcmmoXp = new HashMap<>();
+        ConfigurationSection mcmmoSection = section.getConfigurationSection("mcmmo-xp");
+        if (mcmmoSection != null) {
+            for (String skillId : mcmmoSection.getKeys(false)) {
+                int exp = mcmmoSection.getInt(skillId);
+                this.mcmmoXp.put(skillId.toLowerCase(), exp);
+            }
+        }
+
         // --- PERUBAHAN ---
         // 'fortune' sekarang adalah satu objek, bukan map.
         ConfigurationSection fortuneSection = section.getConfigurationSection("fortune");
@@ -214,6 +229,7 @@ public class BlockData {
         this.breakDuration = section.getDouble("break-duration", 0.0);
         this.fixedDuration = section.getBoolean("fixed-duration", false);
         this.denyDrops = section.getBoolean("deny-drops", false);
+        this.allowAdvancedEnchantments = section.getBoolean("allow-advanced-enchantments", true);
         // --- AKHIR BARU ---
 
         // --- AUTO-SCAN ---
@@ -248,6 +264,10 @@ public class BlockData {
             this.modelHideBlock = false;
         }
         // --- AKHIR MODEL ENGINE ---
+
+        // --- REGION PRIORITY ---
+        this.priority = section.getInt("priority", 0);
+        // --- AKHIR REGION PRIORITY ---
     }
 
     public static class FortuneData {
@@ -394,6 +414,10 @@ public class BlockData {
         return breakSound;
     }
 
+    public int getPriority() {
+        return priority;
+    }
+
     public String getRegenSound() {
         return regenSound;
     }
@@ -454,6 +478,14 @@ public class BlockData {
         return this.auraskillsXp != null && !this.auraskillsXp.isEmpty();
     }
 
+    public Map<String, Integer> getMcmmoXp() {
+        return mcmmoXp;
+    }
+
+    public boolean hasMcmmoXp() {
+        return this.mcmmoXp != null && !this.mcmmoXp.isEmpty();
+    }
+
     public FortuneData getFortuneData() {
         return fortuneData;
     }
@@ -473,6 +505,10 @@ public class BlockData {
 
     public boolean isDenyDrops() {
         return denyDrops;
+    }
+    
+    public boolean isAllowAdvancedEnchantments() {
+        return allowAdvancedEnchantments;
     }
     // --- AKHIR GETTER BARU ---
 

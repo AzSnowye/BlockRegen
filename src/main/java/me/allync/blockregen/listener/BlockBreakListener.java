@@ -26,6 +26,8 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 public class BlockBreakListener implements Listener {
@@ -33,6 +35,9 @@ public class BlockBreakListener implements Listener {
     private final BlockRegen plugin;
     private final Logger logger;
     private final MiningManager miningManager; // BARU
+
+    private final Map<Block, String> preBreakIdentifiers = new ConcurrentHashMap<>();
+    private final Map<Block, BlockState> preBreakStates = new ConcurrentHashMap<>();
 
     public BlockBreakListener(BlockRegen plugin) {
         this.plugin = plugin;
@@ -45,13 +50,31 @@ public class BlockBreakListener implements Listener {
         miningManager.debug(player, blockIdentifier, message);
     }
 
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onBlockBreakLowest(BlockBreakEvent event) {
+        Block block = event.getBlock();
+        Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
+        String blockIdentifier = miningManager.getBlockIdentifier(block, regionNames);
+        if (plugin.getBlockManager().isRegenBlockInRegion(blockIdentifier, regionNames)) {
+            preBreakIdentifiers.put(block, blockIdentifier);
+            preBreakStates.put(block, block.getState());
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGH)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         Block block = event.getBlock();
         Set<String> regionNames = plugin.getRegionManager().getRegionNamesAt(block.getLocation());
-        // Get block identifier with region context for accurate floor detection
-        String blockIdentifier = miningManager.getBlockIdentifier(block, regionNames);
+        
+        // Coba ambil identifier dari LOWEST event (sebelum diubah plugin lain seperti AdvancedEnchantments)
+        String blockIdentifier = preBreakIdentifiers.remove(block);
+        BlockState originalState = preBreakStates.remove(block);
+        
+        if (blockIdentifier == null) {
+            blockIdentifier = miningManager.getBlockIdentifier(block, regionNames);
+            originalState = block.getState();
+        }
 
         debug(player, blockIdentifier, "BlockBreakEvent triggered by " + player.getName());
 
@@ -156,8 +179,15 @@ public class BlockBreakListener implements Listener {
         }
 
         if (event.isCancelled()) {
-            debug(player, blockIdentifier, "Event is cancelled. Aborting.");
-            return;
+            // Jika event dicancel, tapi bloknya sudah menjadi AIR, berarti ada plugin (seperti AdvancedEnchantments) 
+            // yang sudah menghancurkan blok ini secara paksa. Kita harus tetap me-regen blok tersebut.
+            if (block.getType() == Material.AIR) {
+                debug(player, blockIdentifier, "Event is cancelled but block is already AIR (plugin break). Forcing regen.");
+                event.setCancelled(false); // Un-cancel agar vanilla tidak protes, atau biarkan true? Kita paksa lanjut saja.
+            } else {
+                debug(player, blockIdentifier, "Event is cancelled (likely by protection plugin). Aborting.");
+                return;
+            }
         }
 
         if (!plugin.getBlockManager().isRegenBlockInRegion(blockIdentifier, regionNames)) {
@@ -203,7 +233,8 @@ public class BlockBreakListener implements Listener {
             debug(player, blockIdentifier, "&cBlockData is null for " + blockIdentifier + ". This should not happen. Aborting.");
             return;
         }
-        final BlockState originalState = block.getState();
+        
+        // originalState sudah ditangkap di awal event (atau dari LOWEST)
 
         // Hitung pickaxe power jika block punya tool requirement atau power requirement
         double power = (data.requiresPickaxePower() || data.requiresTool())

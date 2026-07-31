@@ -49,7 +49,6 @@ public class ConfigManager {
     public String wrongToolSound;
     public boolean allWorldsEnabled;
     public List<String> enabledWorlds;
-    public Map<String, String> worldMultiplierProfiles; // BARU
     public boolean sendRegenCountdown;
     public boolean checkForUpdates;
     public boolean preventMiningWhenFull;
@@ -189,28 +188,10 @@ public class ConfigManager {
         this.blockHealthHologramEnabled = this.config.getBoolean("block-health-hologram.enabled", true);
         this.idleRotateEnabled = this.config.getBoolean("options.idle-rotate.enabled", false);
         this.idleRotateDefaultMinutes = this.config.getDouble("options.idle-rotate.default-minutes", 5.0);
-
-        // Muat pemetaan profil multiplier dunia
-        this.worldMultiplierProfiles = new HashMap<>();
-        ConfigurationSection profileSection = config.getConfigurationSection("worlds.world-multiplier-profiles");
-        if (profileSection != null) {
-            for (String worldName : profileSection.getKeys(false)) {
-                worldMultiplierProfiles.put(worldName.toLowerCase(), profileSection.getString(worldName));
-            }
-        }
     }
 
     private String getColoredString(String path) {
         String str = this.config.getString(path, "");
         return me.allync.blockregen.util.ColorUtil.color(str);
-    }
-
-    /**
-     * Mendapatkan nama profil multiplier untuk dunia tertentu.
-     * @param worldName Nama dunia.
-     * @return Nama profil, atau "default" jika tidak ada yang spesifik.
-     */
-    public String getMultiplierProfileForWorld(String worldName) {
-        return worldMultiplierProfiles.getOrDefault(worldName.toLowerCase(), "default");
     }
 }

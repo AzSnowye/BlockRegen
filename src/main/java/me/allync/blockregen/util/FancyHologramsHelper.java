@@ -25,6 +25,7 @@ public final class FancyHologramsHelper {
             data.setText(Arrays.asList(topText, bottomText));
             data.setPersistent(false);
             hologram = manager.create(data);
+            hologram.getData().setPersistent(false);
             manager.addHologram(hologram);
         } else {
             hologram.getData().setLocation(location);
@@ -76,6 +77,7 @@ public final class FancyHologramsHelper {
             data.setText(Arrays.asList(topText, bottomText));
             data.setPersistent(false);
             hologram = manager.create(data);
+            hologram.getData().setPersistent(false);
             manager.addHologram(hologram);
         } else {
             hologram.getData().setLocation(location);
