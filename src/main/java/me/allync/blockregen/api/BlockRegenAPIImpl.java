@@ -43,4 +43,19 @@ public class BlockRegenAPIImpl implements BlockRegenAPI {
         Set<String> regions = getRegionsAt(block.getLocation());
         return plugin.getMiningManager().getBlockIdentifier(block, regions);
     }
+
+    @Override
+    public String getBlockConfigIdentifier(Block block, Set<String> regionNames) {
+        return plugin.getMiningManager().getBlockIdentifier(block, regionNames);
+    }
+
+    @Override
+    public boolean isConfiguredBlock(Block block) {
+        return getBlockConfigIdentifier(block) != null;
+    }
+
+    @Override
+    public boolean isConfiguredBlock(Block block, Set<String> regionNames) {
+        return getBlockConfigIdentifier(block, regionNames) != null;
+    }
 }

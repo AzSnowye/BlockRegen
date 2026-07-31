@@ -64,4 +64,27 @@ public interface BlockRegenAPI {
      * @return the configuration identifier, or null if not a BlockRegen block
      */
     String getBlockConfigIdentifier(Block block);
+
+    /**
+     * Get the block configuration identifier for a block with region context.
+     * @param block the block to check
+     * @param regionNames the regions the block is in
+     * @return the configuration identifier, or null if not a BlockRegen block
+     */
+    String getBlockConfigIdentifier(Block block, Set<String> regionNames);
+
+    /**
+     * Check if a block is configured in BlockRegen.
+     * @param block the block to check
+     * @return true if configured, false otherwise
+     */
+    boolean isConfiguredBlock(Block block);
+
+    /**
+     * Check if a block is configured in BlockRegen with region context.
+     * @param block the block to check
+     * @param regionNames the regions the block is in
+     * @return true if configured, false otherwise
+     */
+    boolean isConfiguredBlock(Block block, Set<String> regionNames);
 }
