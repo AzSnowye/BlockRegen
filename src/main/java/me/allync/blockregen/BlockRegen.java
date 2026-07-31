@@ -62,6 +62,9 @@ public final class BlockRegen extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        me.allync.blockregen.api.BlockRegenAPI.setInstance(new me.allync.blockregen.api.BlockRegenAPIImpl(this));
+        getServer().getServicesManager().register(me.allync.blockregen.api.BlockRegenAPI.class, me.allync.blockregen.api.BlockRegenAPI.get(), this, org.bukkit.plugin.ServicePriority.Normal);
+
         mmoItemsEnabled = getServer().getPluginManager().isPluginEnabled("MMOItems");
         if (mmoItemsEnabled) {
             getLogger().info("MMOItems found, integration enabled.");

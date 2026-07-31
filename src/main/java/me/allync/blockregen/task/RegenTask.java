@@ -33,6 +33,13 @@ public class RegenTask extends BukkitRunnable {
     }
 
     public void run() {
+        me.allync.blockregen.api.event.BlockRegenRegenerateEvent event = new me.allync.blockregen.api.event.BlockRegenRegenerateEvent(this.originalState, this.blockIdentifier, this.regenVariantIdentifier);
+        this.plugin.getServer().getPluginManager().callEvent(event);
+        if (event.isCancelled()) {
+            this.regenManager.removeRegenerating(this.originalState.getLocation());
+            return;
+        }
+
         Block block = this.originalState.getLocation().getBlock();
         if (!applyRegenVariant()) {
             this.originalState.update(true, false);

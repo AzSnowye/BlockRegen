@@ -68,6 +68,12 @@ public class MiningManager {
      * or BlockMiningListener (for custom duration breaks).
      */
     public void processBlockBreak(Player player, Block block, BlockData data, BlockState originalState, String blockIdentifier) {
+        me.allync.blockregen.api.event.BlockRegenBreakEvent breakEvent = new me.allync.blockregen.api.event.BlockRegenBreakEvent(player, block, blockIdentifier);
+        plugin.getServer().getPluginManager().callEvent(breakEvent);
+        if (breakEvent.isCancelled()) {
+            return;
+        }
+
         plugin.getIdleRotationManager().cancel(block.getLocation());
 
         if (plugin.getRegenManager().isRegenerating(block.getLocation())) {

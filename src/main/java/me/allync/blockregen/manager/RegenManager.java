@@ -17,6 +17,8 @@ public class RegenManager {
 
     private final Map<Location, BlockState> regeneratingBlocks = new HashMap<>();
     private final Map<Location, org.bukkit.scheduler.BukkitTask> regenTasks = new HashMap<>();
+    private final Map<Location, RegenTask> regenRunnables = new HashMap<>();
+    private final Map<Location, Long> regenEndTimes = new HashMap<>();
 
     public RegenManager(BlockRegen plugin) {
         this.plugin = plugin;
@@ -25,8 +27,11 @@ public class RegenManager {
     public void startRegen(BlockState originalState, int delay, String blockIdentifier, String regenVariantIdentifier) {
         Location loc = originalState.getLocation();
         this.regeneratingBlocks.put(loc, originalState);
-        org.bukkit.scheduler.BukkitTask task = (new RegenTask(this.plugin, this, originalState, blockIdentifier, regenVariantIdentifier)).runTaskLater((Plugin)this.plugin, delay * 20L);
+        RegenTask runnable = new RegenTask(this.plugin, this, originalState, blockIdentifier, regenVariantIdentifier);
+        org.bukkit.scheduler.BukkitTask task = runnable.runTaskLater((Plugin)this.plugin, delay * 20L);
         this.regenTasks.put(loc, task);
+        this.regenRunnables.put(loc, runnable);
+        this.regenEndTimes.put(loc, System.currentTimeMillis() + (delay * 1000L));
     }
 
     public void startRelocationCooldown(BlockState stateDuringCooldown, int delaySeconds, Runnable onFinish) {
@@ -36,6 +41,7 @@ public class RegenManager {
 
         Location location = stateDuringCooldown.getLocation();
         this.regeneratingBlocks.put(location, stateDuringCooldown);
+        this.regenEndTimes.put(location, System.currentTimeMillis() + (delaySeconds * 1000L));
         org.bukkit.scheduler.BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             removeRegenerating(location);
             if (onFinish != null) {
@@ -52,6 +58,8 @@ public class RegenManager {
     public void removeRegenerating(Location location) {
         this.regeneratingBlocks.remove(location);
         this.regenTasks.remove(location);
+        this.regenRunnables.remove(location);
+        this.regenEndTimes.remove(location);
     }
 
     public void cancelRegen(Location location) {
@@ -60,12 +68,41 @@ public class RegenManager {
             task.cancel();
         }
         this.regeneratingBlocks.remove(location);
+        this.regenRunnables.remove(location);
+        this.regenEndTimes.remove(location);
+    }
+
+    public void forceRegen(Location location) {
+        RegenTask runnable = this.regenRunnables.remove(location);
+        org.bukkit.scheduler.BukkitTask task = this.regenTasks.remove(location);
+        if (task != null) {
+            task.cancel();
+        }
+        this.regenEndTimes.remove(location);
+        BlockState state = this.regeneratingBlocks.remove(location);
+        if (runnable != null) {
+            runnable.run();
+        } else if (state != null) {
+            state.update(true, false);
+        }
+    }
+
+    public long getRemainingRegenTime(Location location) {
+        Long endTime = this.regenEndTimes.get(location);
+        if (endTime == null) {
+            return -1;
+        }
+        long diff = endTime - System.currentTimeMillis();
+        return Math.max(0L, diff);
     }
 
     public void handleShutdown() {
         this.plugin.getLogger().info("Server is shutting down. Regenerating all pending blocks immediately...");
         (new HashMap<>(this.regeneratingBlocks)).forEach((location, state) -> state.update(true, false));
         this.regeneratingBlocks.clear();
+        this.regenTasks.clear();
+        this.regenRunnables.clear();
+        this.regenEndTimes.clear();
         this.plugin.getLogger().info("All pending blocks have been regenerated.");
     }
 
